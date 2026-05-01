@@ -4,11 +4,7 @@
 
 #include "absl/log/log.h"
 #include "astronomy/лидов.hpp"
-#include "journal/method.hpp"
 #include "journal/profiles.hpp"  // 🧙 For generated profiles.
-#include "numerics/elementary_functions.hpp"
-#include "quantities/quantities.hpp"
-#include "quantities/si.hpp"
 
 namespace principia {
 namespace interface {
@@ -17,7 +13,7 @@ using namespace principia::astronomy::_лидов;
 
 double __cdecl principia__GraphLidovFrozenLine(double const c₂) {
   journal::Method<journal::GraphLidovFrozenLine> m({c₂});
-  return m.Return(лидов_frozen_c₁́(c₂));
+  return m.Return(ЛидовFrozenLine(c₂));
 }
 
 double __cdecl principia__GraphLidovMaximalEccentricityLine(double const e,

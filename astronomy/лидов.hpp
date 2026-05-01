@@ -15,9 +15,9 @@ namespace internal {
 
 using namespace principia::geometry::_interval;
 using namespace principia::journal::_method;
-using namespace principia::quantities::_si;
-using namespace principia::quantities::_quantities;
 using namespace principia::numerics::_elementary_functions;
+using namespace principia::quantities::_quantities;
+using namespace principia::quantities::_si;
 
 // All functions in this file refer to an orbit perturbed as in the analysis of
 // [Лид61].  The parameters c₁ and c₂ are as defined there.
