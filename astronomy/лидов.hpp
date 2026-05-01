@@ -22,7 +22,7 @@ using namespace principia::quantities::_si;
 // All functions in this file refer to an orbit perturbed as in the analysis of
 // [Лид61].  The parameters c₁ and c₂ are as defined there.
 
-static const Angle i_critical = ArcCos(Sqrt(3.0 / 5.0));
+static inline const Angle i_critical = ArcCos(Sqrt(3.0 / 5.0));
 
 // Returns c₁ such that an orbit with the these values of c₁ and c₂ has no
 // eccentricity-inclination exchange.
