@@ -248,17 +248,17 @@ constexpr void VeltkampSplitting(T const& x, T& xh, T& xl) {
   // number of mantissa bits is even, or when C < 0, but it's unclear in what
   // cases our mistake would have caused incorrect results.
   constexpr double C = (1 << s) + 1;
-  T ɣ;
+  T γ;
   if constexpr (real_vector_space<T>) {
-    ɣ = C * x;
+    γ = C * x;
   } else if constexpr (ring<T>) {
     T const Ct(C);
-    ɣ = Ct * x;
+    γ = Ct * x;
   } else {
     static_assert(false);
   }
-  T const δ = x - ɣ;
-  xh = ɣ + δ;
+  T const δ = x - γ;
+  xh = γ + δ;
   xl = x - xh;
 }
 
