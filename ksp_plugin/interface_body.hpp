@@ -2,6 +2,7 @@
 
 #include "ksp_plugin/interface.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -828,10 +829,10 @@ inline not_null<OrbitAnalysis*> NewOrbitAnalysis(
         .first_reentry_time = to_double_ptr(vessel_analysis->first_reentry()),
         .plottable_elements = new TypedIterator<std::vector<PlottableElements>>(
             elements.mean_elements()
-                | std::ranges::views::transform([&plugin](auto const& elements) {
-                    return ToPlottableElements(plugin, elements);
-                  })
-                | std::ranges::to<std::vector<PlottableElements>>(),
+            | std::ranges::views::transform([&plugin](auto const& elements) {
+                return ToPlottableElements(plugin, elements);
+              })
+            | std::ranges::to<std::vector<PlottableElements>>(),
             &plugin),
     };
   }
