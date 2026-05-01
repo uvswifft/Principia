@@ -564,7 +564,10 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
       apoapsis_graph_ = new Graph(Width(10), Height(1));
     }
     Interval t_range = Interval.Empty;
-    for (elements.plottable_elements.IteratorReset();
+    elements.plottable_elements.IteratorReset();
+    t_range.min =
+        elements.plottable_elements.IteratorGetPlottableElements().time;
+    for (;
          !elements.plottable_elements.IteratorAtEnd();
          elements.plottable_elements.IteratorIncrement()) {
       var elements_at_t =
@@ -894,12 +897,12 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
   private void RenderЛидовGraph() {
     using (new UnityEngine.GUILayout.VerticalScope()) {
       лидов_graph_.Render();
+      UnityEngine.GUILayout.Space(Height(1));
       UnityEngine.GUILayout.Label(
           L10N.CacheFormat(
               "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters"),
               Style.Aligned(UnityEngine.TextAnchor.UpperCenter, UnityEngine.GUI.skin.label),
               UnityEngine.GUILayout.ExpandWidth(true));
-      UnityEngine.GUILayout.Space(Height(1));
       using (new UnityEngine.GUILayout.HorizontalScope()) {
         UnityEngine.GUILayout.FlexibleSpace();
         using (new UnityEngine.GUILayout.VerticalScope()) {

@@ -85,7 +85,6 @@ void __cdecl principia__GraphLidovMinimalEccentricityRightLineC2AndC1Max(
     double* const c₁_max) {
   journal::Method<journal::GraphLidovMinimalEccentricityRightLineC2AndC1Max> m(
       {e}, {c₂, c₁_max});
-  double const e² = Pow<2>(e);
   *c₂ = ЛидовMinimalEccentricityRightLineC₂(e);
   *c₁_max = ЛидовMinimalEccentricityRightLineC₁Max(e);
   return m.Return();

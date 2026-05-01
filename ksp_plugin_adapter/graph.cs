@@ -20,11 +20,7 @@ internal class Graph : ScalingRenderer {
     x_range_ = x_range;
     y_range_ = y_range;
     dirty_ = true;
-    for (int x = 0; x < texture_.width; ++x) {
-      for (int y = 0; y < texture_.height; ++y) {
-        texture_.SetPixels(all_black_);
-      }
-    }
+    texture_.SetPixels(all_black_);
     labels_.Clear();
   }
 
