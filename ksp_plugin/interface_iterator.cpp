@@ -154,7 +154,8 @@ PlottableElements __cdecl principia__IteratorGetPlottableElements(
     Iterator const* const iterator) {
   journal::Method<journal::IteratorGetPlottableElements> m({iterator});
   auto const typed_iterator = check_not_null(
-      dynamic_cast<TypedIterator<std::vector<PlottableElements>> const*>(iterator));
+      dynamic_cast<TypedIterator<std::vector<PlottableElements>> const*>(
+          iterator));
   return m.Return(typed_iterator->Get<PlottableElements>(std::identity{}));
 }
 
