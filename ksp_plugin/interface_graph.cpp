@@ -69,7 +69,7 @@ double __cdecl principia__GraphLidovMinimalEccentricityLeftLine(
     double const e,
     double const c₂) {
   journal::Method<journal::GraphLidovMinimalEccentricityLeftLine> m({e, c₂});
-  return m.Return(ЛидовMinimalEccentricityLeftLine(e,c₂));
+  return m.Return(ЛидовMinimalEccentricityLeftLine(e, c₂));
 }
 
 Interval __cdecl principia__GraphLidovMinimalEccentricityLeftLineC2Range(
