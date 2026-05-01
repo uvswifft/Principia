@@ -263,7 +263,7 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
       }
 
       OrbitalElements elements = analysis.elements;
-      DrawElementGraphs(elements);
+      DrawAllGraphs(elements);
       OrbitRecurrence? recurrence = analysis.recurrence;
       EquatorialCrossings? equatorial_crossings =
           analysis.ground_track_equatorial_crossings;
@@ -367,38 +367,7 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
           RenderOrbitalElements(elements, primary);
         }
         if (show_graphs_) {
-          using (new UnityEngine.GUILayout.VerticalScope()) {
-            UnityEngine.GUILayout.Label(
-                L10N.CacheFormat(
-                    "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters"));
-            лидов_graph_.Render();
-            UnityEngine.GUILayout.Space(Height(1));
-            UnityEngine.GUILayout.Label(
-                L10N.CacheFormat(
-                    "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters_ShowLines"));
-            if (UnityEngine.GUILayout.Toggle(
-                    show_max_e_min_i_lines_,
-                    L10N.CacheFormat(
-                        "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters_MinEMaxI")) !=
-                show_max_e_min_i_lines_) {
-              show_max_e_min_i_lines_ = !show_max_e_min_i_lines_;
-              if (show_max_e_min_i_lines_) {
-                show_min_e_max_i_lines_ = false;
-              }
-              must_redraw_graphs_ = true;
-            }
-            if (UnityEngine.GUILayout.Toggle(
-                    show_min_e_max_i_lines_,
-                    L10N.CacheFormat(
-                        "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters_MaxEMinI")) !=
-                show_min_e_max_i_lines_) {
-              show_min_e_max_i_lines_ = !show_min_e_max_i_lines_;
-              if (show_min_e_max_i_lines_) {
-                show_max_e_min_i_lines_ = false;
-              }
-              must_redraw_graphs_ = true;
-            }
-          }
+          RenderЛидовGraph();
         }
       }
       using (new UnityEngine.GUILayout.HorizontalScope()) {
@@ -564,6 +533,23 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
 
   double last_t_min_ = double.PositiveInfinity;
 
+  private void DrawAllGraphs(OrbitalElements elements) {
+    double t_min = double.PositiveInfinity;
+    if (elements != null) {
+      if (!elements.plottable_elements.IteratorAtEnd()) {
+        t_min = elements.plottable_elements.IteratorGetPlottableElements().time;
+      }
+      if (t_min == last_t_min_ && !must_redraw_graphs_) {
+        return;
+      }
+      must_redraw_graphs_ = false;
+    }
+    last_t_min_ = t_min;
+    DrawElementGraphs(elements);
+    DrawEccentricityVectorGraph(elements);
+    DrawЛидовGraph(elements);
+  }
+
   private void DrawElementGraphs(OrbitalElements elements) {
     if (a_graph_ == null) {
       a_graph_ = new Graph(Width(10), Height(1));
@@ -573,35 +559,15 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
       ω_graph_ = new Graph(Width(10), Height(1));
       periapsis_graph_ = new Graph(Width(10), Height(1));
       apoapsis_graph_ = new Graph(Width(10), Height(1));
-      лидов_graph_ = new Graph(Width(10), Height(10));
-      eccentricity_vector_graph_ = new Graph(Width(10), Height(10));
     }
     Interval t_range = Interval.Empty;
-    Interval e_cos_ω_range = Interval.Empty;
-    Interval e_sin_ω_range = Interval.Empty;
-    if (elements != null) {
-      if (!elements.plottable_elements.IteratorAtEnd()) {
-        t_range.min =
-            elements.plottable_elements.IteratorGetPlottableElements().time;
-      }
-      if (t_range.min == last_t_min_ && !must_redraw_graphs_) {
-        return;
-      }
-      must_redraw_graphs_ = false;
-      for (;
-           !elements.plottable_elements.IteratorAtEnd();
-           elements.plottable_elements.IteratorIncrement()) {
-        var elements_at_t =
-            elements.plottable_elements.IteratorGetPlottableElements();
-        t_range.max = elements_at_t.time;
-        e_cos_ω_range.Include(elements_at_t.
-                                  eccentricity_cos_argument_of_periapsis);
-        e_sin_ω_range.Include(elements_at_t.
-                                  eccentricity_sin_argument_of_periapsis);
-      }
-      elements.plottable_elements.IteratorReset();
+    for (elements.plottable_elements.IteratorReset();
+         !elements.plottable_elements.IteratorAtEnd();
+         elements.plottable_elements.IteratorIncrement()) {
+      var elements_at_t =
+          elements.plottable_elements.IteratorGetPlottableElements();
+      t_range.max = elements_at_t.time;
     }
-    last_t_min_ = t_range.min;
     foreach (var distance_graph in new[]
                  { a_graph_, periapsis_graph_, apoapsis_graph_ }) {
       distance_graph.PrepareCanvas(t_range,
@@ -615,6 +581,49 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
     i_graph_.PrepareCanvas(t_range, elements.mean_inclination);
     Ω_graph_.PrepareCanvas(t_range, elements.mean_longitude_of_ascending_nodes);
     ω_graph_.PrepareCanvas(t_range, elements.mean_argument_of_periapsis);
+    for (elements.plottable_elements.IteratorReset();
+         !elements.plottable_elements.IteratorAtEnd();
+         elements.plottable_elements.IteratorIncrement()) {
+      var elements_at_t = elements.plottable_elements.IteratorGetPlottableElements();
+      double t = elements_at_t.time;
+      a_graph_.PlotPoint(t, elements_at_t.semimajor_axis, XKCDColors.Sunflower);
+      e_graph_.PlotPoint(t, elements_at_t.eccentricity, XKCDColors.Cornflower);
+      i_graph_.PlotPoint(t, elements_at_t.inclination, XKCDColors.Lavender);
+      Ω_graph_.PlotPoint(t,
+                         elements_at_t.longitude_of_ascending_node,
+                         XKCDColors.LightPink);
+      ω_graph_.PlotPoint(t,
+                         elements_at_t.argument_of_periapsis,
+                         XKCDColors.Cornflower);
+      periapsis_graph_.PlotPoint(t,
+                                 elements_at_t.periapsis_distance,
+                                 XKCDColors.Sunflower);
+      apoapsis_graph_.PlotPoint(t,
+                                elements_at_t.apoapsis_distance,
+                                XKCDColors.Sunflower);
+      лидов_graph_.PlotPoint(elements_at_t.lidov_c2,
+                             elements_at_t.lidov_c1,
+                             XKCDColors.RoseRed);
+    }
+  }
+
+
+  private void DrawEccentricityVectorGraph(OrbitalElements elements) {
+    if (eccentricity_vector_graph_ == null) { 
+      eccentricity_vector_graph_ = new Graph(Width(10), Height(10));
+    }
+    Interval e_cos_ω_range = Interval.Empty;
+    Interval e_sin_ω_range = Interval.Empty;
+    for (elements.plottable_elements.IteratorReset();
+          !elements.plottable_elements.IteratorAtEnd();
+          elements.plottable_elements.IteratorIncrement()) {
+      var elements_at_t =
+          elements.plottable_elements.IteratorGetPlottableElements();
+      e_cos_ω_range.Include(elements_at_t.
+                                eccentricity_cos_argument_of_periapsis);
+      e_sin_ω_range.Include(elements_at_t.
+                                eccentricity_sin_argument_of_periapsis);
+    }
     // Show a square region of the eccentricity vector space.
     if (e_cos_ω_range.measure > e_sin_ω_range.measure) {
       double midpoint = e_sin_ω_range.midpoint;
@@ -628,6 +637,21 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
     eccentricity_vector_graph_.PrepareCanvas(e_cos_ω_range, e_sin_ω_range);
     eccentricity_vector_graph_.PlotHorizontalLine(0, XKCDColors.White);
     eccentricity_vector_graph_.PlotVerticalLine(0, XKCDColors.White);
+    for (;
+         !elements.plottable_elements.IteratorAtEnd();
+         elements.plottable_elements.IteratorIncrement()) {
+      var elements_at_t = elements.plottable_elements.IteratorGetPlottableElements();
+      eccentricity_vector_graph_.PlotPoint(
+          elements_at_t.eccentricity_cos_argument_of_periapsis,
+          elements_at_t.eccentricity_sin_argument_of_periapsis,
+          XKCDColors.Cornflower);
+    }
+  }
+
+  private void DrawЛидовGraph(OrbitalElements elements) {
+    if (лидов_graph_ == null) {
+      лидов_graph_ = new Graph(Width(10), Height(10));
+    }
     лидов_graph_.PrepareCanvas(
         new Interval{ min = -3.0 / 5.0, max = 2.0 / 5.0 },
         new Interval{ min = 0, max = 1 });
@@ -756,33 +780,13 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
             XKCDColors.White);
       }
     }
-    for (;
+    for (elements.plottable_elements.IteratorReset();
          !elements.plottable_elements.IteratorAtEnd();
          elements.plottable_elements.IteratorIncrement()) {
       var elements_at_t = elements.plottable_elements.IteratorGetPlottableElements();
-      double t = elements_at_t.time;
-      a_graph_.PlotPoint(t, elements_at_t.semimajor_axis, XKCDColors.Sunflower);
-      e_graph_.PlotPoint(t, elements_at_t.eccentricity, XKCDColors.Cornflower);
-      i_graph_.PlotPoint(t, elements_at_t.inclination, XKCDColors.Lavender);
-      Ω_graph_.PlotPoint(t,
-                         elements_at_t.longitude_of_ascending_node,
-                         XKCDColors.LightPink);
-      ω_graph_.PlotPoint(t,
-                         elements_at_t.argument_of_periapsis,
-                         XKCDColors.Cornflower);
-      periapsis_graph_.PlotPoint(t,
-                                 elements_at_t.periapsis_distance,
-                                 XKCDColors.Sunflower);
-      apoapsis_graph_.PlotPoint(t,
-                                elements_at_t.apoapsis_distance,
-                                XKCDColors.Sunflower);
       лидов_graph_.PlotPoint(elements_at_t.lidov_c2,
                              elements_at_t.lidov_c1,
                              XKCDColors.RoseRed);
-      eccentricity_vector_graph_.PlotPoint(
-          elements_at_t.eccentricity_cos_argument_of_periapsis,
-          elements_at_t.eccentricity_sin_argument_of_periapsis,
-          XKCDColors.Cornflower);
     }
   }
 
@@ -821,7 +825,6 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
         e_graph_.Render();
       }
     }
-
     using (new UnityEngine.GUILayout.HorizontalScope()) {
       LabeledField(
           L10N.CacheFormat("#Principia_OrbitAnalyser_Elements_Inclination"),
@@ -831,7 +834,6 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
         i_graph_.Render();
       }
     }
-
     using (new UnityEngine.GUILayout.HorizontalScope()) {
       LabeledField(
           L10N.CacheFormat(
@@ -885,6 +887,41 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
       if (show_graphs_) {
         Style.VerticalLineSpacing();
         apoapsis_graph_.Render();
+      }
+    }
+  }
+
+  private void RenderЛидовGraph() {
+    using (new UnityEngine.GUILayout.VerticalScope()) {
+      UnityEngine.GUILayout.Label(
+          L10N.CacheFormat(
+              "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters"));
+      лидов_graph_.Render();
+      UnityEngine.GUILayout.Space(Height(1));
+      UnityEngine.GUILayout.Label(
+          L10N.CacheFormat(
+              "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters_ShowLines"));
+      if (UnityEngine.GUILayout.Toggle(
+              show_max_e_min_i_lines_,
+              L10N.CacheFormat(
+                  "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters_MinEMaxI")) !=
+          show_max_e_min_i_lines_) {
+        show_max_e_min_i_lines_ = !show_max_e_min_i_lines_;
+        if (show_max_e_min_i_lines_) {
+          show_min_e_max_i_lines_ = false;
+        }
+        must_redraw_graphs_ = true;
+      }
+      if (UnityEngine.GUILayout.Toggle(
+              show_min_e_max_i_lines_,
+              L10N.CacheFormat(
+                  "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters_MaxEMinI")) !=
+          show_min_e_max_i_lines_) {
+        show_min_e_max_i_lines_ = !show_min_e_max_i_lines_;
+        if (show_min_e_max_i_lines_) {
+          show_max_e_min_i_lines_ = false;
+        }
+        must_redraw_graphs_ = true;
       }
     }
   }
