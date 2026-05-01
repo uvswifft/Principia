@@ -537,15 +537,16 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
 
   private void DrawAllGraphs(OrbitalElements elements) {
     double t_min = double.PositiveInfinity;
-    if (elements != null) {
-      if (!elements.plottable_elements.IteratorAtEnd()) {
-        t_min = elements.plottable_elements.IteratorGetPlottableElements().time;
-      }
-      if (t_min == last_t_min_ && !must_redraw_graphs_) {
-        return;
-      }
-      must_redraw_graphs_ = false;
+    if (elements == null) {
+      return;
     }
+    if (!elements.plottable_elements.IteratorAtEnd()) {
+      t_min = elements.plottable_elements.IteratorGetPlottableElements().time;
+    }
+    if (t_min == last_t_min_ && !must_redraw_graphs_) {
+      return;
+    }
+    must_redraw_graphs_ = false;
     last_t_min_ = t_min;
     DrawElementGraphs(elements);
     DrawEccentricityVectorGraph(elements);
@@ -603,9 +604,6 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
       apoapsis_graph_.PlotPoint(t,
                                 elements_at_t.apoapsis_distance,
                                 XKCDColors.Sunflower);
-      лидов_graph_.PlotPoint(elements_at_t.lidov_c2,
-                             elements_at_t.lidov_c1,
-                             XKCDColors.RoseRed);
     }
   }
 
@@ -617,8 +615,8 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
     Interval e_cos_ω_range = Interval.Empty;
     Interval e_sin_ω_range = Interval.Empty;
     for (elements.plottable_elements.IteratorReset();
-          !elements.plottable_elements.IteratorAtEnd();
-          elements.plottable_elements.IteratorIncrement()) {
+         !elements.plottable_elements.IteratorAtEnd();
+         elements.plottable_elements.IteratorIncrement()) {
       var elements_at_t =
           elements.plottable_elements.IteratorGetPlottableElements();
       e_cos_ω_range.Include(elements_at_t.
@@ -639,7 +637,7 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
     eccentricity_vector_graph_.PrepareCanvas(e_cos_ω_range, e_sin_ω_range);
     eccentricity_vector_graph_.PlotHorizontalLine(0, XKCDColors.White);
     eccentricity_vector_graph_.PlotVerticalLine(0, XKCDColors.White);
-    for (;
+    for (elements.plottable_elements.IteratorReset();
          !elements.plottable_elements.IteratorAtEnd();
          elements.plottable_elements.IteratorIncrement()) {
       var elements_at_t = elements.plottable_elements.IteratorGetPlottableElements();
