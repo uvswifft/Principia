@@ -897,7 +897,7 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
   private void RenderЛидовGraph() {
     using (new UnityEngine.GUILayout.VerticalScope()) {
       лидов_graph_.Render();
-      UnityEngine.GUILayout.Space(Height(1));
+      UnityEngine.GUILayout.Space(Height(0.5f));
       UnityEngine.GUILayout.Label(
           L10N.CacheFormat(
               "#Principia_OrbitAnalyser_Elements_Graphs_ЛидовParameters"),
