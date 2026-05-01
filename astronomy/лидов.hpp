@@ -126,12 +126,12 @@ using internal::ЛидовMaximalEccentricityLine;
 using internal::ЛидовMaximalEccentricityLineC₂Range;
 using internal::ЛидовMaximalInclinationLine;
 using internal::ЛидовMaximalInclinationLineC₂Range;
-using internal::ЛидовMinimalInclinationLine;
-using internal::ЛидовMinimalInclinationLineC₂Range;
 using internal::ЛидовMinimalEccentricityLeftLine;
 using internal::ЛидовMinimalEccentricityLeftLineC₂Range;
-using internal::ЛидовMinimalEccentricityRightLineC₂;
 using internal::ЛидовMinimalEccentricityRightLineC₁Max;
+using internal::ЛидовMinimalEccentricityRightLineC₂;
+using internal::ЛидовMinimalInclinationLine;
+using internal::ЛидовMinimalInclinationLineC₂Range;
 
 }  // namespace _лидов
 }  // namespace astronomy

@@ -53,7 +53,7 @@ double __cdecl principia__GraphLidovMinimalInclinationLine(
   journal::Method<journal::GraphLidovMinimalInclinationLine> m(
       {inclination_in_degrees, c₂});
   Angle const i = inclination_in_degrees * Degree;
-  return m.Return(ЛидовMinimalInclinationLine(i));
+  return m.Return(ЛидовMinimalInclinationLine(i, c₂));
 }
 
 Interval __cdecl principia__GraphLidovMinimalInclinationLineC2Range(
