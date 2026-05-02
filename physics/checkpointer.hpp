@@ -151,7 +151,8 @@ class Checkpointer {
   // key is the source of truth.
   CheckpointsByTime checkpoints_;
 
-  //TODO(phl)comment
+  // The checkpoints held in the `checkpoints_` map are all allocated in this
+  // arena.
   google::protobuf::Arena arena_;
 };
 
