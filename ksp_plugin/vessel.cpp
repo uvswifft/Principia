@@ -10,6 +10,7 @@
 #include <ranges>
 #include <set>
 #include <string>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -21,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "base/concepts.hpp"
+#include "base/graveyard.hpp"
 #include "base/macros.hpp"  // 🧙 For NAMED.
 #include "base/map_util.hpp"
 #include "base/status_utilities.hpp"  // 🧙 For CHECK_OK.
@@ -35,6 +37,7 @@ namespace _vessel {
 namespace internal {
 
 using namespace principia::base::_concepts;
+using namespace principia::base::_graveyard;
 using namespace principia::base::_map_util;
 using namespace principia::geometry::_barycentre_calculator;
 using namespace principia::ksp_plugin::_integrators;
@@ -45,6 +48,9 @@ using namespace std::chrono_literals;
 
 // TODO(phl): Move this to some kind of parameters.
 constexpr std::int64_t max_points_to_serialize = 20'000;
+
+auto* const where_elephants_go_to_die =
+    new Graveyard(std::thread::hardware_concurrency());
 
 bool operator!=(Vessel::PrognosticatorParameters const& left,
                 Vessel::PrognosticatorParameters const& right) {
@@ -987,8 +993,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     vessel->AwaitReanimation(InfinitePast);
     auto psychohistory =
         vessel->trajectory_.DetachSegments(vessel->psychohistory_);
-    DiscreteTrajectory<Barycentric> const trajectory =
-        std::move(vessel->trajectory_);
+    DiscreteTrajectory<Barycentric> trajectory = std::move(vessel->trajectory_);
     vessel->trajectory_ = {};
     vessel->backstory_ = vessel->trajectory_.segments().begin();
     if (vessel->downsampling_parameters_.has_value()) {
@@ -999,6 +1004,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
                                         trajectory.front().degrees_of_freedom));
     vessel->psychohistory_ = vessel->trajectory_.NewSegment();
     vessel->is_collapsible_ = false;
+    where_elephants_go_to_die->Bury(std::move(vessel->checkpointer_));
     vessel->checkpointer_ =
         make_not_null_unique<Checkpointer<serialization::Vessel>>(
             vessel->MakeCheckpointerWriter(),
@@ -1019,6 +1025,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     vessel->psychohistory_ =
         vessel->trajectory_.AttachSegments(std::move(psychohistory));
+    where_elephants_go_to_die->Bury(std::move(trajectory));
   }
   return vessel;
 }
