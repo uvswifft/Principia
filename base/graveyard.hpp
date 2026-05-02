@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 #include <memory>
 
@@ -16,8 +17,8 @@ class Graveyard {
  public:
   explicit Graveyard(std::int64_t number_of_threads);
 
-  template<typename T>
-  void Bury(std::unique_ptr<T> t);
+  template<std::movable T>
+  void Bury(T t);
 
  private:
   ThreadPool<void> gravedigger_;
