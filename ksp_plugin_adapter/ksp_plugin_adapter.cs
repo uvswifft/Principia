@@ -923,6 +923,7 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
                                   ref plugin_,
                                   serialization_compression_,
                                   serialization_encoding_);
+      FlightDriver.SetPause(pauseState: true);
       if (serialization_compression_ == "") {
         serialization_compression_ = "gipfeli";
       }
@@ -950,6 +951,7 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
       bad_installation_dialog_.RenderWindow();
       return;
     }
+    FlightDriver.SetPause(pauseState: true);
 
     apocalypse_dialog_.RenderWindow();
 
