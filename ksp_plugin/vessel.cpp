@@ -981,31 +981,44 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
         }));
   }
   vessel->oldest_reanimated_checkpoint_ = checkpoint;
-  
+
   // Si ça marche à moi la peur.
-  if (!is_pre_лефшец && is_pre_leibniz) {
+  if (!is_pre_лефшец && is_pre_leibniz && !vessel->trajectory_.empty()) {
     vessel->AwaitReanimation(InfinitePast);
     auto psychohistory =
         vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     DiscreteTrajectory<Barycentric> const trajectory =
         std::move(vessel->trajectory_);
     vessel->trajectory_ = {};
+    vessel->backstory_ = vessel->trajectory_.segments().begin();
+    if (vessel->downsampling_parameters_.has_value()) {
+      vessel->backstory_->SetDownsampling(
+          vessel->downsampling_parameters_.value());
+    }
+    CHECK_OK(vessel->trajectory_.Append(trajectory.front().time,
+                                        trajectory.front().degrees_of_freedom));
+    vessel->psychohistory_ = vessel->trajectory_.NewSegment();
     vessel->is_collapsible_ = false;
+    vessel->checkpointer_ =
+        make_not_null_unique<Checkpointer<serialization::Vessel>>(
+            vessel->MakeCheckpointerWriter(),
+            MakeCheckpointerReader());
     for (auto const& segment : trajectory.segments()) {
-      auto const it = vessel->trajectory_.NewSegment();
-      if (vessel->downsampling_parameters_.has_value()) {
-        it->SetDownsampling(*vessel->downsampling_parameters_);
-      }
       for (auto const& [t, degrees_of_freedom] : segment) {
-        CHECK_OK(vessel->trajectory_.Append(t, degrees_of_freedom));
+        if (t != vessel->trajectory_.back().time) {
+          LOG_EVERY_N_SEC(WARNING, 1)
+              << "Re-downsampling trajectory of "
+                 "post-Лефшец, pre-Leibniz vessel "
+              << vessel->name() << ": " << t << "/" << trajectory.back().time;
+          CHECK_OK(vessel->trajectory_.Append(t, degrees_of_freedom));
+        }
       }
       vessel->EnactCollapsibilityChange(
           /*will_be_collapsible=*/!vessel->is_collapsible_);
     }
+    vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     vessel->psychohistory_ =
         vessel->trajectory_.AttachSegments(std::move(psychohistory));
-    vessel->prediction_ = std::next(vessel->psychohistory_);
-    vessel->backstory_ = std::prev(vessel->psychohistory_);
   }
   return vessel;
 }
