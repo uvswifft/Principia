@@ -1004,6 +1004,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
             vessel->MakeCheckpointerWriter(),
             MakeCheckpointerReader());
     for (auto const& segment : trajectory.segments()) {
+      vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
       for (auto const& [t, degrees_of_freedom] : segment) {
         if (t != vessel->trajectory_.back().time) {
           LOG_EVERY_N_SEC(WARNING, 1)
@@ -1013,6 +1014,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
           CHECK_OK(vessel->trajectory_.Append(t, degrees_of_freedom));
         }
       }
+      vessel->psychohistory_ = vessel->trajectory_.NewSegment();
       vessel->EnactCollapsibilityChange(
           /*will_be_collapsible=*/!vessel->is_collapsible_);
     }
