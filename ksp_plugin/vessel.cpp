@@ -182,8 +182,11 @@ void Vessel::ClearAllIntrinsicForcesAndTorques() {
 }
 
 void Vessel::DetectCollapsibilityChange() {
-  bool const will_be_collapsible = IsCollapsible();
+  EnactCollapsibilityChange(/*will_be_collapsible=*/IsCollapsible());
+}
 
+// REMOVE BEFORE FLIGHT Move down.
+void Vessel::EnactCollapsibilityChange(bool const will_be_collapsible) {
   // It is always correct to mark as non-collapsible a collapsible segment or to
   // append collapsible points to a non-collapsible segment (but not
   // vice-versa).  Therefore, two decisions are made here: whether to create a
@@ -782,14 +785,24 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
   bool const is_pre_hamilton = message.history().segment_size() == 0;
   bool const is_pre_हरीश_चंद्र = !message.has_is_collapsible();
   bool const is_pre_hilbert = !message.has_selected_flight_plan_index();
-  LOG_IF(WARNING, is_pre_hilbert)
+  bool const is_pre_лефшец =
+      is_pre_hamilton ||
+      !message.history().segment(0).zfp().is_lefschetz_timeline();
+  bool const is_pre_leibniz =
+      is_pre_лефшец || (message.checkpoint().size() > 0 &&
+                        !message.checkpoint(0)
+                             .non_collapsible_segment()
+                             .has_leibniz_trajectory_marker());
+  LOG_IF(WARNING, is_pre_leibniz)
       << "Reading pre-"
       << (is_pre_cesàro     ? "Cesàro"
           : is_pre_chasles  ? "Chasles"
           : is_pre_陈景润    ? "陈景润"
           : is_pre_hamilton ? "Hamilton"
           : is_pre_हरीश_चंद्र  ? "हरीश चंद्र"
-                            : "Hilbert") << " Vessel";
+          : is_pre_hilbert  ? "Hilbert"
+          : is_pre_лефшец   ? "Лефшец"
+                            : "Leibniz") << " Vessel";
 
   // NOTE(egg): for now we do not read the `MasslessBody` as it can contain no
   // information.
@@ -869,40 +882,39 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
                      &vessel->prediction_});
     vessel->is_collapsible_ = message.is_collapsible();
 
-    auto rewriter = [](serialization::Vessel::Checkpoint const& checkpoint) {
-      if (checkpoint.non_collapsible_segment()
-              .has_leibniz_trajectory_marker()) {
-        return checkpoint;
-      } else {
-        DiscreteTrajectorySegmentIterator<Barycentric> backstory;
-        // The read would emit "pre-Leibniz" warnings for each checkpoint, and
-        // there may be many.  Just silence these warnings.
-        DiscreteTrajectory<Barycentric> const non_collapsible_segment =
-            DiscreteTrajectory<Barycentric>::ReadFromMessage(
-                checkpoint.non_collapsible_segment(),
-                /*tracked=*/{&backstory},
-                /*quiet=*/true);
-        serialization::Vessel::Checkpoint rewritten = checkpoint;
-        rewritten.clear_non_collapsible_segment();
-        non_collapsible_segment.WriteToMessage(
-            rewritten.mutable_non_collapsible_segment(),
-            backstory->begin(),
-            backstory->end(),
-            /*tracked=*/{backstory},
-            /*exact=*/{});
-        LOG_EVERY_N_SEC(WARNING, 1)
-            << "Rewriting pre-Leibniz Vessel::Checkpoint, size before "
-            << checkpoint.ByteSizeLong() << "B, size after "
-            << rewritten.ByteSizeLong() << "B";
-        return rewritten;
-      }
-    };
+    auto pre_leibniz_rewriter =
+        [](serialization::Vessel::Checkpoint const& checkpoint) {
+          CHECK(!checkpoint.non_collapsible_segment()
+                     .has_leibniz_trajectory_marker())
+              << checkpoint;
+          DiscreteTrajectorySegmentIterator<Barycentric> backstory;
+          // The read would emit "pre-Leibniz" warnings for each checkpoint, and
+          // there may be many.  Just silence these warnings.
+          DiscreteTrajectory<Barycentric> const non_collapsible_segment =
+              DiscreteTrajectory<Barycentric>::ReadFromMessage(
+                  checkpoint.non_collapsible_segment(),
+                  /*tracked=*/{&backstory},
+                  /*quiet=*/true);
+          serialization::Vessel::Checkpoint rewritten = checkpoint;
+          rewritten.clear_non_collapsible_segment();
+          non_collapsible_segment.WriteToMessage(
+              rewritten.mutable_non_collapsible_segment(),
+              backstory->begin(),
+              backstory->end(),
+              /*tracked=*/{backstory},
+              /*exact=*/{});
+          LOG_EVERY_N_SEC(WARNING, 1)
+              << "Rewriting pre-Leibniz Vessel::Checkpoint, size before "
+              << checkpoint.ByteSizeLong() << "B, size after "
+              << rewritten.ByteSizeLong() << "B";
+          return rewritten;
+        };
 
     vessel->checkpointer_ =
         Checkpointer<serialization::Vessel>::ReadFromMessage(
             vessel->MakeCheckpointerWriter(),
             vessel->MakeCheckpointerReader(),
-            rewriter,
+            is_pre_leibniz ? pre_leibniz_rewriter : nullptr,
             message.checkpoint());
     if (message.has_downsampling_parameters()) {
       vessel->downsampling_parameters_ =
@@ -911,6 +923,30 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
                   message.downsampling_parameters().tolerance())};
     } else {
       vessel->downsampling_parameters_ = std::nullopt;
+    }
+    // Si ça marche à moi la peur.
+    if (!is_pre_лефшец && is_pre_leibniz) {
+      vessel->AwaitReanimation(InfinitePast);
+      auto psychohistory =
+          vessel->trajectory_.DetachSegments(vessel->psychohistory_);
+      DiscreteTrajectory<Barycentric> const trajectory =
+          std::move(vessel->trajectory_);
+      vessel->is_collapsible_ = false;
+      for (auto const& segment : trajectory.segments()) {
+        auto const it = vessel->trajectory_.NewSegment();
+        if (vessel->downsampling_parameters_.has_value()) {
+          it->SetDownsampling(*vessel->downsampling_parameters_);
+        }
+        for (auto const& [t, degrees_of_freedom] : segment) {
+          vessel->trajectory_.Append(t, degrees_of_freedom);
+        }
+        vessel->EnactCollapsibilityChange(
+            /*will_be_collapsible=*/!vessel->is_collapsible_);
+      }
+      vessel->psychohistory_ =
+          vessel->trajectory_.AttachSegments(std::move(psychohistory));
+      vessel->prediction_ = std::next(vessel->psychohistory_);
+      vessel->backstory_ = std::prev(vessel->psychohistory_);
     }
   }
 

@@ -377,6 +377,10 @@ class Vessel {
   // motion.
   bool IsCollapsible() const;
 
+  // Performs the management of checkpoints and segments based on whether the
+  // collapsibility changes.
+  void EnactCollapsibilityChange(bool will_be_collapsible);
+
   // Returns true if this object holds a non-null deserialized flight plan.
   bool has_deserialized_flight_plan() const;
 
