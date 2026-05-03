@@ -1028,6 +1028,15 @@ Plugin* __cdecl principia__NewPlugin(
   return m.Return(result.release());
 }
 
+Plugin* __cdecl principia__PluginReaderAwait(PluginReader** const reader) {
+  journal::Method<journal::PluginReaderGet> m({reader}, {reader});
+  CHECK(reader != nullptr);
+  CHECK(*reader != nullptr);
+  auto result = (*reader)->Await();
+  TakeOwnership(reader);
+  return m.Return(result.release());
+}
+
 Plugin* __cdecl principia__PluginReaderGet(PluginReader** const reader) {
   journal::Method<journal::PluginReaderGet> m({reader}, {reader});
   CHECK(reader != nullptr);
@@ -1044,6 +1053,13 @@ char const* __cdecl principia__PluginReaderLogs(
   journal::Method<journal::PluginReaderLogs> m({reader});
   CHECK(reader != nullptr);
   return m.Return({reader->logs().c_str()});
+}
+
+bool __cdecl principia__PluginReaderWillBeSlow(
+  PluginReader const* const reader) {
+  journal::Method<journal::PluginReaderWillBeSlow> m({reader});
+  CHECK(reader != nullptr);
+  return m.Return({reader->WillBeSlow()});
 }
 
 void __cdecl principia__PrepareToReportCollisions(Plugin* const plugin) {

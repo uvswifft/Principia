@@ -28,6 +28,9 @@ class PluginReader {
       serialization::Plugin const& message,
       google::protobuf::Arena& arena);
 
+  bool WillBeSlow() const;
+
+  not_null<std::unique_ptr<Plugin>> Await();
   std::unique_ptr<Plugin> get();
 
   // The result is owned by this object and is is not mutated until the next
@@ -37,8 +40,9 @@ class PluginReader {
  private:
   StringLogSink logs_;
   std::string logs_snapshot_;
-  absl::Mutex lock_;
+  mutable absl::Mutex lock_;
   std::jthread reader_;
+  std::optional<bool> will_be_slow_ ABSL_GUARDED_BY(lock_);
   std::unique_ptr<Plugin> result_ ABSL_GUARDED_BY(lock_);
 };
 

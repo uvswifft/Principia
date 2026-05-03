@@ -1521,7 +1521,8 @@ void Plugin::WriteToMessage(
 }
 
 not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
-    serialization::Plugin const& message) {
+    serialization::Plugin const& message,
+      std::function<void(bool will_be_slow)> expected_performance) {
   LOG(INFO) << __FUNCTION__;
 
   auto const history_parameters =
@@ -1590,7 +1591,7 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
     not_null<Celestial const*> const parent =
         FindOrDie(plugin->celestials_, vessel_message.parent_index()).get();
     vessel_futures.push_back(
-        vessel_deserialization_pool.Add([parent, &plugin, &vessel_message]() {
+        vessel_deserialization_pool.Add([parent, &plugin, &vessel_message, expected_performance]() {
           return Vessel::ReadFromMessage(
               vessel_message.vessel(),
               parent,
@@ -1598,7 +1599,8 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
               [&part_id_to_vessel =
                    plugin->part_id_to_vessel_](PartId const part_id) {
                 CHECK_NE(part_id_to_vessel.erase(part_id), 0) << part_id;
-              });
+              },
+              expected_performance);
         }));
   }
 
@@ -1688,10 +1690,6 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
   }
 
   plugin->initializing_.Flop();
-  for (int i = 0; i < 10; ++i) {
-    LOG(INFO) << "REMOVE BEFORE FLIGHT: Sleeping to show the reader window…";
-    absl::SleepFor(absl::Seconds(1));
-  }
   return plugin;
 }
 

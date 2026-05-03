@@ -296,7 +296,8 @@ class Vessel {
       serialization::Vessel const& message,
       not_null<Celestial const*> parent,
       not_null<Ephemeris<Barycentric>*> ephemeris,
-      std::function<void(PartId)> const& deletion_callback);
+      std::function<void(PartId)> const& deletion_callback,
+      std::function<void(bool will_be_slow)> expected_performance = nullptr);
   void FillContainingPileUpsFromMessage(
       serialization::Vessel const& message,
       PileUp::PileUpForSerializationIndex const&

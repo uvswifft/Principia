@@ -14,12 +14,36 @@ PluginReader::PluginReader(serialization::Plugin const& message,
                            google::protobuf::Arena& arena) {
   reader_ = MakeStoppableThread([this, &message, &arena]() {
     absl::AddLogSink(&logs_);
-    auto result = Plugin::ReadFromMessage(message);
+    auto result = Plugin::ReadFromMessage(message, [this](bool will_be_slow) {
+      absl::MutexLock l(lock_);
+      will_be_slow_ = will_be_slow;
+    });
     arena.Reset();
     absl::RemoveLogSink(&logs_);
     absl::MutexLock l(lock_);
+    will_be_slow_ = false;
     result_ = std::move(result);
   });
+}
+
+bool PluginReader::WillBeSlow() const {
+  auto slowness_known = [this]() {
+    lock_.AssertReaderHeld();
+    return will_be_slow_.has_value();
+  };
+  absl::MutexLock l(lock_);
+  lock_.Await(absl::Condition(&slowness_known));
+  return *will_be_slow_;
+}
+
+not_null<std::unique_ptr<Plugin>> PluginReader::Await() {
+  absl::MutexLock l(lock_);
+  auto has_result = [this]() {
+    lock_.AssertReaderHeld();
+    return result_ != nullptr;
+  };
+  lock_.Await(absl::Condition(&has_result));
+  return std::move(result_);
 }
 
 std::unique_ptr<Plugin> PluginReader::get() {

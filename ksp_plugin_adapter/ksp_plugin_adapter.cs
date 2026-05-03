@@ -931,11 +931,11 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
                                   ref plugin_reader_,
                                   serialization_compression_,
                                   serialization_encoding_);
-      /*do {
-          Thread.Sleep(100);
-          plugin_ = Interface.PluginReaderGet(ref plugin_reader_);
-      } while (plugin_ == IntPtr.Zero);*/
-      KeepPaused();
+      if (plugin_reader_.PluginReaderWillBeSlow()) {
+        KeepPaused();
+      } else {
+        plugin_ = Interface.PluginReaderAwait(ref plugin_reader_);
+      }
       if (serialization_compression_ == "") {
         serialization_compression_ = "gipfeli";
       }
@@ -970,7 +970,6 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
           KeepPaused();
         } else {
           FlightDriver.SetPause(pauseState: false);
-          TimeWarp.SetRate(TimeWarp.CurrentRateIndex, instant: true, postScreenMessage: true);
           plugin_reader_dialog_.Hide();
           LockClearing();
         }
@@ -978,7 +977,10 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
     }
     if (plugin_reader_ != IntPtr.Zero) {
       plugin_reader_dialog_.Show();
-      plugin_reader_dialog_.message = "Loading Principia save, the game will unpause when done…\n\n" + plugin_reader_.PluginReaderLogs();
+      plugin_reader_dialog_.message =
+          "The Principia save requires reprocessing, see Principia issue #4490.\n" +
+          "This may take a while; the game will unpause when done…\n\n" +
+          plugin_reader_.PluginReaderLogs();
       plugin_reader_dialog_.RenderWindow();
       return;
     }
