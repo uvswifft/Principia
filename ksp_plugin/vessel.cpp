@@ -1012,6 +1012,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
         make_not_null_unique<Checkpointer<serialization::Vessel>>(
             vessel->MakeCheckpointerWriterFromCheckpoint(message.checkpoint(0)),
             MakeCheckpointerReader());
+    vessel->oldest_reanimated_checkpoint_ = InfinitePast;
 
     for (auto const& segment : trajectory.segments()) {
       vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
@@ -1032,7 +1033,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     vessel->psychohistory_ =
         vessel->trajectory_.AttachSegments(std::move(psychohistory));
 
-    // Now we can get the parameters from the pile-up, it will be set the next
+    // Now we can get the parameters from the pile-up, they will be set the next
     // time we write a checkpoint.
     vessel->checkpointer_->set_writer(
         vessel->MakeCheckpointerWriterFromPileUp());
