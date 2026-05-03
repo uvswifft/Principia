@@ -215,11 +215,13 @@ class Vessel {
   // Asks the reanimator thread to asynchronously reconstruct the past so that
   // the `t_min()` of the vessel ultimately ends up at or before
   // `desired_t_min`.
-  void RequestReanimation(Instant const& desired_t_min) EXCLUDES(lock_);
+  void RequestReanimation(Instant const& desired_t_min,
+                          bool quiet = false) EXCLUDES(lock_);
 
   // Same as `RequestReanimation`, but synchronous.  This function blocks until
   // the `t_min()` of the vessel is at or before `desired_t_min`.
-  void AwaitReanimation(Instant const& desired_t_min) EXCLUDES(lock_);
+  void AwaitReanimation(Instant const& desired_t_min,
+                        bool quiet = false) EXCLUDES(lock_);
 
   // Creates a flight plan at the end of history using the given parameters;
   // selects that flight plan, which is the last one in `flight_plans_`.
@@ -318,6 +320,11 @@ class Vessel {
   friend bool operator!=(PrognosticatorParameters const& left,
                          PrognosticatorParameters const& right);
 
+  struct ReanimatorParameters {
+    Instant desired_t_min;
+    bool quiet;
+  };
+
   using TrajectoryIterator =
       DiscreteTrajectory<Barycentric>::iterator (Part::*)();
 
@@ -348,7 +355,8 @@ class Vessel {
   Checkpointer<serialization::Vessel>::Reader
   static MakeCheckpointerReader();
 
-  absl::Status Reanimate(Instant desired_t_min) EXCLUDES(lock_);
+  absl::Status Reanimate(ReanimatorParameters const& reanimator_parameters)
+      EXCLUDES(lock_);
 
   // `t_initial` is the time of the checkpoint, which is the end of the non-
   // collapsible segment.  `t_final` is the start of the trajectory or of the
@@ -357,7 +365,8 @@ class Vessel {
   absl::StatusOr<Instant> ReanimateOneCheckpoint(
       serialization::Vessel::Checkpoint const& message,
       Instant const& t_initial,
-      Instant const& t_final) EXCLUDES(lock_);
+      Instant const& t_final,
+      bool quiet) EXCLUDES(lock_);
 
   // Merges any reanimated trajectories found in the queue and returns true if
   // the reanimation reached `desired_t_min`, or if the vessel is fully
@@ -432,7 +441,7 @@ class Vessel {
   Instant oldest_reanimated_checkpoint_ ABSL_GUARDED_BY(lock_) = InfinitePast;
 
   // The techniques and terminology follow [Lov22].
-  RecurringThread<Instant> reanimator_;
+  RecurringThread<ReanimatorParameters> reanimator_;
   Clientele<Instant> reanimator_clientele_;
 
   // Parameter passed to the last call to `RequestReanimation`, if any.
