@@ -678,9 +678,9 @@ void Vessel::WriteToMessage(not_null<serialization::Vessel*> const message,
             << NAMED(message->history().SpaceUsedLong()) << " "
             << NAMED(message->prediction().SpaceUsedLong()) << " "
             << NAMED(message->parts().SpaceUsedExcludingSelfLong()) << " "
-            << NAMED(message->flight_plans().SpaceUsedExcludingSelfLong()) << " "
-            << NAMED(message->checkpoint().SpaceUsedExcludingSelfLong()) << " "
-            << NAMED(message->ByteSizeLong());
+            << NAMED(message->flight_plans().SpaceUsedExcludingSelfLong())
+            << " " << NAMED(message->checkpoint().SpaceUsedExcludingSelfLong())
+            << " " << NAMED(message->ByteSizeLong());
 }
 
 not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
@@ -933,7 +933,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     // merge segments after redownsampling.
     bool segment_is_collapsible = false;
     std::int64_t s = 0;
-    for (auto const& segment: trajectory.segments()) {
+    for (auto const& segment : trajectory.segments()) {
       VLOG(1) << "Old segment " << s++ << " of size " << segment.size()
               << " for " << vessel->name();
       for (auto const& [t, degrees_of_freedom] : segment) {
