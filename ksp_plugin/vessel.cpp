@@ -775,6 +775,10 @@ void Vessel::WriteToMessage(not_null<serialization::Vessel*> const message,
   message->set_is_collapsible(is_collapsible_);
   checkpointer_->WriteToMessage(message->mutable_checkpoint());
   LOG(INFO) << name_ << " " << NAMED(message->SpaceUsedLong()) << " "
+            << NAMED(message->history().SpaceUsedLong()) << " "
+            << NAMED(message->prediction().SpaceUsedLong()) << " "
+            << NAMED(message->parts().SpaceUsedExcludingSelfLong()) << " "
+            << NAMED(message->flight_plans().SpaceUsedExcludingSelfLong()) << " "
             << NAMED(message->checkpoint().SpaceUsedExcludingSelfLong()) << " "
             << NAMED(message->ByteSizeLong());
 }
@@ -1014,6 +1018,11 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
             MakeCheckpointerReader());
     vessel->oldest_reanimated_checkpoint_ = InfinitePast;
 
+    // This boolean flips at each segment because surely we had a collapsibily
+    // change when we decided to create a segment.  It must be separate from
+    // `vessel->is_collapsible_` because the latter reflects our decision to
+    // merge segments after redownsampling.
+    bool segment_is_collapsible = false;
     for (auto const& segment : trajectory.segments()) {
       vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
       for (auto const& [t, degrees_of_freedom] : segment) {
@@ -1026,8 +1035,9 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
         }
       }
       vessel->psychohistory_ = vessel->trajectory_.NewSegment();
+      segment_is_collapsible = !segment_is_collapsible;
       vessel->EnactCollapsibilityChange(
-          /*will_be_collapsible=*/!vessel->is_collapsible_);
+          /*will_be_collapsible=*/segment_is_collapsible);
     }
     vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     vessel->psychohistory_ =
