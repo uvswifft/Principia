@@ -897,7 +897,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
   // segment.  This section reanimates the entire history of the vessel, and
   // then constructs a new trajectory by appending all the points in the
   // history.  The downsampling and merging of segments happen anew, so that we
-  // end up with reasonably-sized data structured.
+  // end up with reasonably-sized data structures.
   if (!is_pre_лефшец && is_pre_leibniz && !vessel->trajectory_.empty()) {
     vessel->AwaitReanimation(InfinitePast);
     auto psychohistory =

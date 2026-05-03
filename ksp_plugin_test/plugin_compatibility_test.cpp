@@ -548,7 +548,7 @@ TEST_F(PluginCompatibilityTest, DISABLED_4490) {
 
   std::int64_t bytes_processed;
   not_null<std::unique_ptr<Plugin const>> plugin = ReadPluginFromFile(
-      R"(C:\Users\Public\Public Mockingbird\Principia\Issues\4490\4490a.proto.b64)",
+      R"(P:\Public Mockingbird\Principia\Saves\4490\4490a.proto.b64)",
       /*compressor=*/"gipfeli",
       /*encoder=*/"base64",
       bytes_processed);

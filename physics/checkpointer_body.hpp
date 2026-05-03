@@ -23,6 +23,7 @@ Checkpointer<Message>::Checkpointer(Writer writer, Reader reader)
 
 template<typename Message>
 void Checkpointer<Message>::set_writer(Writer writer) {
+  absl::MutexLock l(&lock_);
   writer_ = std::move(writer);
 }
 
