@@ -63,6 +63,10 @@ class Checkpointer {
   // Updates the writer of this object.
   void set_writer(Writer writer);
 
+  // The number of checkpoints held by this object.  Only use for debugging and
+  // logging.
+  std::int64_t size() const;
+
   // Returns the oldest checkpoint in this object, or +∞ if no checkpoint was
   // ever created.
   Instant oldest_checkpoint() const EXCLUDES(lock_);

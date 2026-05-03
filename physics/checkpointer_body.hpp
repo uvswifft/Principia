@@ -27,6 +27,12 @@ void Checkpointer<Message>::set_writer(Writer writer) {
 }
 
 template<typename Message>
+std::int64_t Checkpointer<Message>::size() const {
+  absl::ReaderMutexLock l(&lock_);
+  return checkpoints_.size();
+}
+
+template<typename Message>
 Instant Checkpointer<Message>::oldest_checkpoint() const {
   absl::ReaderMutexLock l(&lock_);
   if (checkpoints_.empty()) {
