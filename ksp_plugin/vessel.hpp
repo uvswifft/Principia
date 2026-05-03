@@ -334,8 +334,17 @@ class Vessel {
 
   // Return functions that can be passed to a `Checkpointer` to write this
   // vessel to a checkpoint or read it back.
+  Checkpointer<serialization::Vessel>::Writer MakeCheckpointerWriter(
+      std::function<Ephemeris<Barycentric>::FixedStepParameters()> const&
+          fixed_step_parameters);
+
   Checkpointer<serialization::Vessel>::Writer
-  MakeCheckpointerWriter();
+  MakeCheckpointerWriterFromCheckpoint(
+      serialization::Vessel::Checkpoint const& checkpoint);
+
+  Checkpointer<serialization::Vessel>::Writer
+  MakeCheckpointerWriterFromPileUp();
+
   Checkpointer<serialization::Vessel>::Reader
   static MakeCheckpointerReader();
 
@@ -376,6 +385,10 @@ class Vessel {
   // A vessel is collapsible if it is alone in its pile-up and is in inertial
   // motion.
   bool IsCollapsible() const;
+
+  // Performs the management of checkpoints and segments based on whether the
+  // collapsibility changes.
+  void EnactCollapsibilityChange(bool will_be_collapsible);
 
   // Returns true if this object holds a non-null deserialized flight plan.
   bool has_deserialized_flight_plan() const;

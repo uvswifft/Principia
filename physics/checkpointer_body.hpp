@@ -22,6 +22,18 @@ Checkpointer<Message>::Checkpointer(Writer writer, Reader reader)
       reader_(std::move(reader)) {}
 
 template<typename Message>
+void Checkpointer<Message>::set_writer(Writer writer) {
+  absl::MutexLock l(&lock_);
+  writer_ = std::move(writer);
+}
+
+template<typename Message>
+std::int64_t Checkpointer<Message>::size() const {
+  absl::ReaderMutexLock l(&lock_);
+  return checkpoints_.size();
+}
+
+template<typename Message>
 Instant Checkpointer<Message>::oldest_checkpoint() const {
   absl::ReaderMutexLock l(&lock_);
   if (checkpoints_.empty()) {
