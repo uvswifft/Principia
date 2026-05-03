@@ -2,7 +2,7 @@
 
 #include "base/graveyard.hpp"
 
-#include <memory>
+#include <utility>
 
 namespace principia {
 namespace base {

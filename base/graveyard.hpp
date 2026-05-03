@@ -2,7 +2,6 @@
 
 #include <concepts>
 #include <cstdint>
-#include <memory>
 
 #include "base/thread_pool.hpp"
 
