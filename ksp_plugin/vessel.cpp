@@ -1002,31 +1002,40 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
   }
   vessel->oldest_reanimated_checkpoint_ = checkpoint;
 
-  // Si ça marche à moi la peur.
+  // A regression was introduced in #4415 whereby we stopped merging tiny
+  // non-collapsible and collapsible segments into a bigger non-collapsible
+  // segment.  This section reanimates the entire history of the vessel, and
+  // then constructs a new trajectory by appending all the points in the
+  // history.  The downsampling and merging of segments happen anew, so that we
+  // end up with reasonably-sized data structured.
   if (!is_pre_лефшец && is_pre_leibniz && !vessel->trajectory_.empty()) {
     vessel->AwaitReanimation(InfinitePast);
     auto psychohistory =
         vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     DiscreteTrajectory<Barycentric> trajectory = std::move(vessel->trajectory_);
+
+    // This section mimics the constructor of `Vessel`.
     vessel->trajectory_ = {};
     vessel->backstory_ = vessel->trajectory_.segments().begin();
+    vessel->is_collapsible_ = false;
+    vessel->oldest_reanimated_checkpoint_ = InfinitePast;
+
+    // We will create checkpoints but the pile-up is not known yet, so we'll get
+    // the parameters from the first checkpoint.
+    std::int64_t const checkpointer_size_before = vessel->checkpointer_->size();
+    where_elephants_go_to_die->Bury(std::move(vessel->checkpointer_));
+    vessel->checkpointer_ =
+        make_not_null_unique<Checkpointer<serialization::Vessel>>(
+            vessel->MakeCheckpointerWriterFromCheckpoint(message.checkpoint(0)),
+            MakeCheckpointerReader());
+
+    // This section mimics `CreateTrajectoryIfNeeded`.
     if (vessel->downsampling_parameters_.has_value()) {
       vessel->backstory_->SetDownsampling(
           vessel->downsampling_parameters_.value());
     }
     CHECK_OK(vessel->trajectory_.Append(trajectory.front().time,
                                         trajectory.front().degrees_of_freedom));
-    vessel->is_collapsible_ = false;
-    std::int64_t const checkpointer_size_before = vessel->checkpointer_->size();
-    where_elephants_go_to_die->Bury(std::move(vessel->checkpointer_));
-
-    // We will create checkpoints but the pile-up is not known yet, so we'll get
-    // the parameters from the first checkpoint.
-    vessel->checkpointer_ =
-        make_not_null_unique<Checkpointer<serialization::Vessel>>(
-            vessel->MakeCheckpointerWriterFromCheckpoint(message.checkpoint(0)),
-            MakeCheckpointerReader());
-    vessel->oldest_reanimated_checkpoint_ = InfinitePast;
 
     // This boolean flips at each segment because surely we had a collapsibily
     // change when we decided to create a segment.  It must be separate from
@@ -1037,6 +1046,13 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     for (auto const& segment: trajectory.segments()) {
       VLOG(1) << "Old segment " << s++ << " of size " << segment.size()
               << " for " << vessel->name();
+
+      // Points that were in a non-collapsible segment cannot be moved into a
+      // collapsible segment: that segment won't be checkpointed, so we might
+      // lose data that we couldn't reproduce.
+      CHECK(segment_is_collapsible || !vessel->is_collapsible_)
+          << vessel->name();
+
       for (auto const& [t, degrees_of_freedom] : segment) {
         if (t != vessel->trajectory_.back().time) {
           LOG_EVERY_N_SEC(WARNING, 1)
@@ -1052,9 +1068,6 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
       }
       segment_is_collapsible = !segment_is_collapsible;
     }
-    vessel->psychohistory_ =
-        vessel->trajectory_.AttachSegments(std::move(psychohistory));
-
     LOG(WARNING) << "Trajectory for vessel " << vessel->name()
                  << " was re-downsampled; size before: " << trajectory.size()
                  << " size after: " << vessel->trajectory_.size()
@@ -1062,6 +1075,9 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
                  << " segments after: " << vessel->trajectory_.segments().size()
                  << " checkpoints before: " << checkpointer_size_before
                  << " checkpoints after: " << vessel->checkpointer_->size();
+
+    vessel->psychohistory_ =
+        vessel->trajectory_.AttachSegments(std::move(psychohistory));
 
     // Now we can get the parameters from the pile-up, they will be set the next
     // time we write a checkpoint.
