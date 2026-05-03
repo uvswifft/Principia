@@ -84,7 +84,7 @@ Vessel::Vessel(
       ephemeris_(ephemeris),
       downsampling_parameters_(downsampling_parameters),
       checkpointer_(make_not_null_unique<Checkpointer<serialization::Vessel>>(
-          MakeCheckpointerWriter(),
+          MakeCheckpointerWriterFromPileUp(),
           MakeCheckpointerReader())),
       reanimator_(
           [this](Instant const& desired_t_min) {
@@ -918,7 +918,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
 
     vessel->checkpointer_ =
         Checkpointer<serialization::Vessel>::ReadFromMessage(
-            vessel->MakeCheckpointerWriter(),
+            vessel->MakeCheckpointerWriterFromPileUp(),
             vessel->MakeCheckpointerReader(),
             is_pre_leibniz ? pre_leibniz_rewriter : nullptr,
             message.checkpoint());
@@ -1005,10 +1005,14 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     vessel->psychohistory_ = vessel->trajectory_.NewSegment();
     vessel->is_collapsible_ = false;
     where_elephants_go_to_die->Bury(std::move(vessel->checkpointer_));
+
+    // We will create checkpoints but the pile-up is not known yet, so we'll get
+    // the parameters from the first checkpoint.
     vessel->checkpointer_ =
         make_not_null_unique<Checkpointer<serialization::Vessel>>(
-            vessel->MakeCheckpointerWriter(),
+            vessel->MakeCheckpointerWriterFromCheckpoint(message.checkpoint(0)),
             MakeCheckpointerReader());
+
     for (auto const& segment : trajectory.segments()) {
       vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
       for (auto const& [t, degrees_of_freedom] : segment) {
@@ -1027,6 +1031,12 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     vessel->psychohistory_ =
         vessel->trajectory_.AttachSegments(std::move(psychohistory));
+
+    // Now we can get the parameters from the pile-up, it will be set the next
+    // time we write a checkpoint.
+    vessel->checkpointer_->set_writer(
+        vessel->MakeCheckpointerWriterFromPileUp());
+
     where_elephants_go_to_die->Bury(std::move(trajectory));
   }
   return vessel;
@@ -1066,8 +1076,13 @@ Vessel::Vessel()
       prediction_(trajectory_.segments().end()),
       prognosticator_(nullptr, 20ms) {}
 
-Checkpointer<serialization::Vessel>::Writer Vessel::MakeCheckpointerWriter() {
-  return [this](not_null<serialization::Vessel::Checkpoint*> const message) {
+Checkpointer<serialization::Vessel>::Writer Vessel::MakeCheckpointerWriter(
+    std::function<Ephemeris<Barycentric>::FixedStepParameters()> const&
+        fixed_step_parameters) {
+  // The function passed as parameter is only called when we actually want to
+  // write a checkpoint.
+  return [this, fixed_step_parameters](
+             not_null<serialization::Vessel::Checkpoint*> const message) {
     // The extremities of the `backstory_` are implicitly exact.  Note that
     // `backstory_->end()` might cause serialization of a 1-point psychohistory
     // or prediction (at the last time of the backstory).  To figure things out
@@ -1077,13 +1092,35 @@ Checkpointer<serialization::Vessel>::Writer Vessel::MakeCheckpointerWriter() {
                                backstory_->end(),
                                /*tracked=*/{backstory_},
                                /*exact=*/{});
-
-    // Here the containing pile-up is the one for the collapsible segment.
-    ForSomePart([message](Part& first_part) {
-      first_part.containing_pile_up()->fixed_step_parameters().WriteToMessage(
-          message->mutable_collapsible_fixed_step_parameters());
-    });
+    fixed_step_parameters().WriteToMessage(
+        message->mutable_collapsible_fixed_step_parameters());
   };
+}
+
+Checkpointer<serialization::Vessel>::Writer
+Vessel::MakeCheckpointerWriterFromCheckpoint(
+    serialization::Vessel::Checkpoint const& checkpoint) {
+  auto const collapsible_fixed_step_parameters =
+      Ephemeris<Barycentric>::FixedStepParameters::ReadFromMessage(
+          checkpoint.collapsible_fixed_step_parameters());
+  return MakeCheckpointerWriter([collapsible_fixed_step_parameters]() {
+    return collapsible_fixed_step_parameters;
+  });
+}
+
+Checkpointer<serialization::Vessel>::Writer
+Vessel::MakeCheckpointerWriterFromPileUp() {
+  return MakeCheckpointerWriter([this]() {
+    // Here the containing pile-up is the one for the collapsible segment.
+    std::unique_ptr<Ephemeris<Barycentric>::FixedStepParameters>
+        fixed_step_parameters;
+    ForSomePart([this, &fixed_step_parameters](Part& first_part) {
+      fixed_step_parameters =
+          std::make_unique<Ephemeris<Barycentric>::FixedStepParameters>(
+              first_part.containing_pile_up()->fixed_step_parameters());
+    });
+    return *fixed_step_parameters;
+  });
 }
 
 Checkpointer<serialization::Vessel>::Reader Vessel::MakeCheckpointerReader() {

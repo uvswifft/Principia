@@ -334,8 +334,17 @@ class Vessel {
 
   // Return functions that can be passed to a `Checkpointer` to write this
   // vessel to a checkpoint or read it back.
+  Checkpointer<serialization::Vessel>::Writer MakeCheckpointerWriter(
+      std::function<Ephemeris<Barycentric>::FixedStepParameters()> const&
+          fixed_step_parameters);
+
   Checkpointer<serialization::Vessel>::Writer
-  MakeCheckpointerWriter();
+  MakeCheckpointerWriterFromCheckpoint(
+      serialization::Vessel::Checkpoint const& checkpoint);
+
+  Checkpointer<serialization::Vessel>::Writer
+  MakeCheckpointerWriterFromPileUp();
+
   Checkpointer<serialization::Vessel>::Reader
   static MakeCheckpointerReader();
 

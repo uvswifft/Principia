@@ -60,6 +60,9 @@ class Checkpointer {
 
   Checkpointer(Writer writer, Reader reader);
 
+  // Updates the writer of this object.
+  void set_writer(Writer writer);
+
   // Returns the oldest checkpoint in this object, or +∞ if no checkpoint was
   // ever created.
   Instant oldest_checkpoint() const EXCLUDES(lock_);
@@ -144,7 +147,7 @@ class Checkpointer {
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   mutable absl::Mutex lock_;
-  Writer const writer_;
+  Writer writer_;
   Reader const reader_;
 
   // The time field of the Checkpoint message may or may not be set.  The map
