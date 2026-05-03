@@ -10,6 +10,7 @@
 #include <ranges>
 #include <set>
 #include <string>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -21,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "base/concepts.hpp"
+#include "base/graveyard.hpp"
 #include "base/macros.hpp"  // 🧙 For NAMED.
 #include "base/map_util.hpp"
 #include "base/status_utilities.hpp"  // 🧙 For CHECK_OK.
@@ -35,6 +37,7 @@ namespace _vessel {
 namespace internal {
 
 using namespace principia::base::_concepts;
+using namespace principia::base::_graveyard;
 using namespace principia::base::_map_util;
 using namespace principia::geometry::_barycentre_calculator;
 using namespace principia::ksp_plugin::_integrators;
@@ -45,6 +48,9 @@ using namespace std::chrono_literals;
 
 // TODO(phl): Move this to some kind of parameters.
 constexpr std::int64_t max_points_to_serialize = 20'000;
+
+auto* const where_elephants_go_to_die =
+    new Graveyard(std::thread::hardware_concurrency());
 
 bool operator!=(Vessel::PrognosticatorParameters const& left,
                 Vessel::PrognosticatorParameters const& right) {
@@ -78,7 +84,7 @@ Vessel::Vessel(
       ephemeris_(ephemeris),
       downsampling_parameters_(downsampling_parameters),
       checkpointer_(make_not_null_unique<Checkpointer<serialization::Vessel>>(
-          MakeCheckpointerWriter(),
+          MakeCheckpointerWriterFromPileUp(),
           MakeCheckpointerReader())),
       reanimator_(
           [this](Instant const& desired_t_min) {
@@ -183,106 +189,6 @@ void Vessel::ClearAllIntrinsicForcesAndTorques() {
 
 void Vessel::DetectCollapsibilityChange() {
   EnactCollapsibilityChange(/*will_be_collapsible=*/IsCollapsible());
-}
-
-// REMOVE BEFORE FLIGHT Move down.
-void Vessel::EnactCollapsibilityChange(bool const will_be_collapsible) {
-  // It is always correct to mark as non-collapsible a collapsible segment or to
-  // append collapsible points to a non-collapsible segment (but not
-  // vice-versa).  Therefore, two decisions are made here: whether to create a
-  // checkpoint, and whether to create a new segment.  A new segment is always
-  // created when closing a collapsible segment, because that new
-  // (non-collapsible) segment may have to go in a checkpoint.  A checkpoint is
-  // only ever created when closing a non-collapsible segment; in that case a
-  // new segment is created too to hold the next collapsible segment which won't
-  // go in a checkpoint.
-  //
-  // However, if downsampling is enabled, and the (non-collapsible) segment
-  // being closed has no more than two points, it is reasonable to assume that
-  // the Hermite polynomial is quite close to the trajectory over that segment,
-  // so downsampling might be able to extend that polynomial to cover more
-  // times.  In that case we don't create a checkpoint, we don't create a new
-  // segment, and we will just append future collapsible points to the
-  // non-collapsible segment.  This is expected to save storage when we have a
-  // sequence of very short segments, e.g., because of an RCS burn.
-  bool const collapsibility_changes = is_collapsible_ != will_be_collapsible;
-  bool const segment_is_potentially_extensible =
-      downsampling_parameters_.has_value() && backstory_->size() <= 2;
-
-  if (collapsibility_changes &&
-      (is_collapsible_ || !segment_is_potentially_extensible)) {
-    // If collapsibility changes, we create a new history segment.  This ensures
-    // that downsampling does not change collapsibility boundaries.
-
-    // In normal situations we create a new segment with the collapsibility
-    // given by `will_be_collapsible`.  In one cornercase we delete the current
-    // segment.
-    enum {
-      Create,
-      Delete,
-    } segment_action = Create;
-
-    if (!is_collapsible_) {
-      // If the segment that is being closed is not collapsible, we have no way
-      // to reconstruct it, so we must serialize it in a checkpoint.  Note that
-      // the last point of the backstory specifies the initial conditions of the
-      // next (collapsible) segment.
-      Instant const checkpoint = backstory_->back().time;
-
-      // In some cornercases we might try to create multiple checkpoints at the
-      // same time, see #3280.  The checkpointer doesn't support that.
-      bool const create_checkpoint =
-          checkpointer_->newest_checkpoint() < checkpoint;
-
-      if (create_checkpoint) {
-        LOG(INFO) << "Writing " << ShortDebugString()
-                  << " to checkpoint at: " << checkpoint;
-        checkpointer_->WriteToCheckpoint(checkpoint);
-
-        // If there are no checkpoints in the current trajectory (this would
-        // happen if we restored the last part of trajectory and it didn't
-        // overlap with a checkpoint and no reanimation happened) then the
-        // `oldest_reanimated_checkpoint_` need to be updated to reflect the
-        // newly created checkpoint.
-        absl::MutexLock l(&lock_);
-        if (oldest_reanimated_checkpoint_ == InfiniteFuture) {
-          oldest_reanimated_checkpoint_ = checkpoint;
-        } else {
-          CHECK_LT(oldest_reanimated_checkpoint_, checkpoint);
-        }
-      } else {
-        // Not only don't we create a new checkpoint and a new segment, but we
-        // also delete the current, non-collapsible, 1-point segment, so that we
-        // keep appending to the previous collapsible, 1-point segment.  See
-        // #3332.
-        LOG(INFO) << "Not writing " << ShortDebugString()
-                  << " to duplicate checkpoint at: " << checkpoint;
-        segment_action = Delete;
-      }
-    }
-
-    auto psychohistory = trajectory_.DetachSegments(psychohistory_);
-    switch (segment_action) {
-      case Create: {
-        backstory_ = trajectory_.NewSegment();
-        if (downsampling_parameters_.has_value()) {
-          backstory_->SetDownsampling(downsampling_parameters_.value());
-        }
-        break;
-      }
-      case Delete: {
-        // Let's hope that no-one has kept an iterator to the deleted backstory.
-        trajectory_.DeleteSegments(backstory_);
-        CHECK(!trajectory_.segments().empty());
-        backstory_ = std::prev(trajectory_.segments().end());
-        break;
-      }
-    };
-    psychohistory_ = trajectory_.AttachSegments(std::move(psychohistory));
-
-    // Not updated if we chose to append to the current segment.
-    is_collapsible_ = will_be_collapsible;
-  }
 }
 
 void Vessel::CreateTrajectoryIfNeeded(Instant const& t) {
@@ -769,8 +675,12 @@ void Vessel::WriteToMessage(not_null<serialization::Vessel*> const message,
   message->set_is_collapsible(is_collapsible_);
   checkpointer_->WriteToMessage(message->mutable_checkpoint());
   LOG(INFO) << name_ << " " << NAMED(message->SpaceUsedLong()) << " "
-            << NAMED(message->checkpoint().SpaceUsedExcludingSelfLong()) << " "
-            << NAMED(message->ByteSizeLong());
+            << NAMED(message->history().SpaceUsedLong()) << " "
+            << NAMED(message->prediction().SpaceUsedLong()) << " "
+            << NAMED(message->parts().SpaceUsedExcludingSelfLong()) << " "
+            << NAMED(message->flight_plans().SpaceUsedExcludingSelfLong())
+            << " " << NAMED(message->checkpoint().SpaceUsedExcludingSelfLong())
+            << " " << NAMED(message->ByteSizeLong());
 }
 
 not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
@@ -912,7 +822,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
 
     vessel->checkpointer_ =
         Checkpointer<serialization::Vessel>::ReadFromMessage(
-            vessel->MakeCheckpointerWriter(),
+            vessel->MakeCheckpointerWriterFromPileUp(),
             vessel->MakeCheckpointerReader(),
             is_pre_leibniz ? pre_leibniz_rewriter : nullptr,
             message.checkpoint());
@@ -982,28 +892,50 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
   }
   vessel->oldest_reanimated_checkpoint_ = checkpoint;
 
-  // Si ça marche à moi la peur.
+  // A regression was introduced in #4415 whereby we stopped merging tiny
+  // non-collapsible and collapsible segments into a bigger non-collapsible
+  // segment.  This section reanimates the entire history of the vessel, and
+  // then constructs a new trajectory by appending all the points in the
+  // history.  The downsampling and merging of segments happen anew, so that we
+  // end up with reasonably-sized data structures.
   if (!is_pre_лефшец && is_pre_leibniz && !vessel->trajectory_.empty()) {
     vessel->AwaitReanimation(InfinitePast);
     auto psychohistory =
         vessel->trajectory_.DetachSegments(vessel->psychohistory_);
-    DiscreteTrajectory<Barycentric> const trajectory =
-        std::move(vessel->trajectory_);
+    DiscreteTrajectory<Barycentric> trajectory = std::move(vessel->trajectory_);
+
+    // This section mimics the constructor of `Vessel`.
     vessel->trajectory_ = {};
     vessel->backstory_ = vessel->trajectory_.segments().begin();
+    vessel->is_collapsible_ = false;
+    vessel->oldest_reanimated_checkpoint_ = InfinitePast;
+
+    // We will create checkpoints but the pile-up is not known yet, so we'll get
+    // the parameters from the first checkpoint.
+    std::int64_t const checkpointer_size_before = vessel->checkpointer_->size();
+    where_elephants_go_to_die->Bury(std::move(vessel->checkpointer_));
+    vessel->checkpointer_ =
+        make_not_null_unique<Checkpointer<serialization::Vessel>>(
+            vessel->MakeCheckpointerWriterFromCheckpoint(message.checkpoint(0)),
+            MakeCheckpointerReader());
+
+    // This section mimics `CreateTrajectoryIfNeeded`.
     if (vessel->downsampling_parameters_.has_value()) {
       vessel->backstory_->SetDownsampling(
           vessel->downsampling_parameters_.value());
     }
     CHECK_OK(vessel->trajectory_.Append(trajectory.front().time,
                                         trajectory.front().degrees_of_freedom));
-    vessel->psychohistory_ = vessel->trajectory_.NewSegment();
-    vessel->is_collapsible_ = false;
-    vessel->checkpointer_ =
-        make_not_null_unique<Checkpointer<serialization::Vessel>>(
-            vessel->MakeCheckpointerWriter(),
-            MakeCheckpointerReader());
+
+    // This boolean flips at each segment because surely we had a collapsibily
+    // change when we decided to create a segment.  It must be separate from
+    // `vessel->is_collapsible_` because the latter reflects our decision to
+    // merge segments after redownsampling.
+    bool segment_is_collapsible = false;
+    std::int64_t s = 0;
     for (auto const& segment : trajectory.segments()) {
+      VLOG(1) << "Old segment " << s++ << " of size " << segment.size()
+              << " for " << vessel->name();
       for (auto const& [t, degrees_of_freedom] : segment) {
         if (t != vessel->trajectory_.back().time) {
           LOG_EVERY_N_SEC(WARNING, 1)
@@ -1012,13 +944,36 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
               << vessel->name() << ": " << t << "/" << trajectory.back().time;
           CHECK_OK(vessel->trajectory_.Append(t, degrees_of_freedom));
         }
+        vessel->psychohistory_ = vessel->trajectory_.NewSegment();
+        vessel->EnactCollapsibilityChange(
+            /*will_be_collapsible=*/segment_is_collapsible);
+        vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
+
+        // Points that were in a non-collapsible segment cannot be moved into a
+        // collapsible segment: that segment won't be checkpointed, so we might
+        // lose data that we couldn't reproduce.
+        CHECK(segment_is_collapsible || !vessel->is_collapsible_)
+            << vessel->name();
       }
-      vessel->EnactCollapsibilityChange(
-          /*will_be_collapsible=*/!vessel->is_collapsible_);
+      segment_is_collapsible = !segment_is_collapsible;
     }
-    vessel->trajectory_.DetachSegments(vessel->psychohistory_);
+    LOG(WARNING) << "Trajectory for vessel " << vessel->name()
+                 << " was re-downsampled; size before: " << trajectory.size()
+                 << " size after: " << vessel->trajectory_.size()
+                 << " segments before: " << trajectory.segments().size()
+                 << " segments after: " << vessel->trajectory_.segments().size()
+                 << " checkpoints before: " << checkpointer_size_before
+                 << " checkpoints after: " << vessel->checkpointer_->size();
+
     vessel->psychohistory_ =
         vessel->trajectory_.AttachSegments(std::move(psychohistory));
+
+    // Now we can get the parameters from the pile-up, they will be set the next
+    // time we write a checkpoint.
+    vessel->checkpointer_->set_writer(
+        vessel->MakeCheckpointerWriterFromPileUp());
+
+    where_elephants_go_to_die->Bury(std::move(trajectory));
   }
   return vessel;
 }
@@ -1057,8 +1012,13 @@ Vessel::Vessel()
       prediction_(trajectory_.segments().end()),
       prognosticator_(nullptr, 20ms) {}
 
-Checkpointer<serialization::Vessel>::Writer Vessel::MakeCheckpointerWriter() {
-  return [this](not_null<serialization::Vessel::Checkpoint*> const message) {
+Checkpointer<serialization::Vessel>::Writer Vessel::MakeCheckpointerWriter(
+    std::function<Ephemeris<Barycentric>::FixedStepParameters()> const&
+        fixed_step_parameters) {
+  // The function passed as parameter is only called when we actually want to
+  // write a checkpoint.
+  return [this, fixed_step_parameters](
+             not_null<serialization::Vessel::Checkpoint*> const message) {
     // The extremities of the `backstory_` are implicitly exact.  Note that
     // `backstory_->end()` might cause serialization of a 1-point psychohistory
     // or prediction (at the last time of the backstory).  To figure things out
@@ -1068,13 +1028,35 @@ Checkpointer<serialization::Vessel>::Writer Vessel::MakeCheckpointerWriter() {
                                backstory_->end(),
                                /*tracked=*/{backstory_},
                                /*exact=*/{});
-
-    // Here the containing pile-up is the one for the collapsible segment.
-    ForSomePart([message](Part& first_part) {
-      first_part.containing_pile_up()->fixed_step_parameters().WriteToMessage(
-          message->mutable_collapsible_fixed_step_parameters());
-    });
+    fixed_step_parameters().WriteToMessage(
+        message->mutable_collapsible_fixed_step_parameters());
   };
+}
+
+Checkpointer<serialization::Vessel>::Writer
+Vessel::MakeCheckpointerWriterFromCheckpoint(
+    serialization::Vessel::Checkpoint const& checkpoint) {
+  auto const collapsible_fixed_step_parameters =
+      Ephemeris<Barycentric>::FixedStepParameters::ReadFromMessage(
+          checkpoint.collapsible_fixed_step_parameters());
+  return MakeCheckpointerWriter([collapsible_fixed_step_parameters]() {
+    return collapsible_fixed_step_parameters;
+  });
+}
+
+Checkpointer<serialization::Vessel>::Writer
+Vessel::MakeCheckpointerWriterFromPileUp() {
+  return MakeCheckpointerWriter([this]() {
+    // Here the containing pile-up is the one for the collapsible segment.
+    std::unique_ptr<Ephemeris<Barycentric>::FixedStepParameters>
+        fixed_step_parameters;
+    ForSomePart([this, &fixed_step_parameters](Part& first_part) {
+      fixed_step_parameters =
+          std::make_unique<Ephemeris<Barycentric>::FixedStepParameters>(
+              first_part.containing_pile_up()->fixed_step_parameters());
+    });
+    return *fixed_step_parameters;
+  });
 }
 
 Checkpointer<serialization::Vessel>::Reader Vessel::MakeCheckpointerReader() {
@@ -1337,6 +1319,115 @@ bool Vessel::IsCollapsible() const {
           // Not collapsible if the pile-up contains a part not in this vessel.
           return parts.contains(part);
         });
+}
+
+void Vessel::EnactCollapsibilityChange(bool const will_be_collapsible) {
+  // It is always correct to mark as non-collapsible a collapsible segment or to
+  // append collapsible points to a non-collapsible segment (but not
+  // vice-versa).  Therefore, two decisions are made here: whether to create a
+  // checkpoint, and whether to create a new segment.  A new segment is always
+  // created when closing a collapsible segment, because that new
+  // (non-collapsible) segment may have to go in a checkpoint.  A checkpoint is
+  // only ever created when closing a non-collapsible segment; in that case a
+  // new segment is created too to hold the next collapsible segment which won't
+  // go in a checkpoint.
+  //
+  // However, if downsampling is enabled, and the (non-collapsible) segment
+  // being closed has no more than two points, it is reasonable to assume that
+  // the Hermite polynomial is quite close to the trajectory over that segment,
+  // so downsampling might be able to extend that polynomial to cover more
+  // times.  In that case we don't create a checkpoint, we don't create a new
+  // segment, and we will just append future collapsible points to the
+  // non-collapsible segment.  This is expected to save storage when we have a
+  // sequence of very short segments, e.g., because of an RCS burn.
+  bool const collapsibility_changes = is_collapsible_ != will_be_collapsible;
+  bool const segment_is_potentially_extensible =
+      downsampling_parameters_.has_value() && backstory_->size() <= 2;
+
+  VLOG(1) << (is_collapsible_ ? "Collapsible" : "Non-collapsible")
+          << " segment at " << backstory_->back().time << " has size "
+          << backstory_->size()
+          << ((is_collapsible_ || !segment_is_potentially_extensible)
+                  ? ""
+                  : ", will be extended")
+          << (collapsibility_changes ? "" : " (no collapsibility change)");
+
+  if (collapsibility_changes &&
+      (is_collapsible_ || !segment_is_potentially_extensible)) {
+    // If collapsibility changes, we create a new history segment.  This ensures
+    // that downsampling does not change collapsibility boundaries.
+
+    // In normal situations we create a new segment with the collapsibility
+    // given by `will_be_collapsible`.  In one cornercase we delete the current
+    // segment.
+    enum {
+      Create,
+      Delete,
+    } segment_action = Create;
+
+    if (!is_collapsible_) {
+      // If the segment that is being closed is not collapsible, we have no way
+      // to reconstruct it, so we must serialize it in a checkpoint.  Note that
+      // the last point of the backstory specifies the initial conditions of the
+      // next (collapsible) segment.
+      Instant const checkpoint = backstory_->back().time;
+
+      // In some cornercases we might try to create multiple checkpoints at the
+      // same time, see #3280.  The checkpointer doesn't support that.
+      bool const create_checkpoint =
+          checkpointer_->newest_checkpoint() < checkpoint;
+
+      if (create_checkpoint) {
+        LOG(INFO) << "Writing " << ShortDebugString()
+                  << " to checkpoint at: " << checkpoint;
+        checkpointer_->WriteToCheckpoint(checkpoint);
+
+        // If there are no checkpoints in the current trajectory (this would
+        // happen if we restored the last part of trajectory and it didn't
+        // overlap with a checkpoint and no reanimation happened) then the
+        // `oldest_reanimated_checkpoint_` need to be updated to reflect the
+        // newly created checkpoint.
+        absl::MutexLock l(&lock_);
+        if (oldest_reanimated_checkpoint_ == InfiniteFuture) {
+          oldest_reanimated_checkpoint_ = checkpoint;
+        } else {
+          CHECK_LT(oldest_reanimated_checkpoint_, checkpoint);
+        }
+      } else {
+        // Not only don't we create a new checkpoint and a new segment, but we
+        // also delete the current, non-collapsible, 1-point segment, so that we
+        // keep appending to the previous collapsible, 1-point segment.  See
+        // #3332.
+        LOG(INFO) << "Not writing " << ShortDebugString()
+                  << " to duplicate checkpoint at: " << checkpoint;
+        segment_action = Delete;
+      }
+    }
+
+    auto psychohistory = trajectory_.DetachSegments(psychohistory_);
+    switch (segment_action) {
+      case Create: {
+        VLOG(1) << "Creating segment " << trajectory_.segments().size()
+                << ", last one has size " << backstory_->size();
+        backstory_ = trajectory_.NewSegment();
+        if (downsampling_parameters_.has_value()) {
+          backstory_->SetDownsampling(downsampling_parameters_.value());
+        }
+        break;
+      }
+      case Delete: {
+        // Let's hope that no-one has kept an iterator to the deleted backstory.
+        trajectory_.DeleteSegments(backstory_);
+        CHECK(!trajectory_.segments().empty());
+        backstory_ = std::prev(trajectory_.segments().end());
+        break;
+      }
+    };
+    psychohistory_ = trajectory_.AttachSegments(std::move(psychohistory));
+
+    // Not updated if we chose to append to the current segment.
+    is_collapsible_ = will_be_collapsible;
+  }
 }
 
 bool Vessel::has_deserialized_flight_plan() const {
