@@ -1688,6 +1688,10 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
   }
 
   plugin->initializing_.Flop();
+  for (int i = 0; i < 10; ++i) {
+    LOG(INFO) << "REMOVE BEFORE FLIGHT: Sleeping to show the reader window…";
+    absl::SleepFor(absl::Seconds(1));
+  }
   return plugin;
 }
 

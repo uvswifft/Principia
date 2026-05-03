@@ -524,19 +524,19 @@ void __cdecl principia__DeleteU16String(char16_t const** const native_string) {
 void __cdecl principia__DeserializePlugin(
     char const* const serialization,
     PushDeserializer** const deserializer,
-    Plugin const** const plugin,
+    PluginReader** const plugin_reader,
     char const* const compressor,
     char const* const encoder) {
   journal::Method<journal::DeserializePlugin> m({serialization,
                                                  deserializer,
-                                                 plugin,
+                                                 plugin_reader,
                                                  compressor,
                                                  encoder},
                                                 {deserializer,
-                                                 plugin});
+                                                 plugin_reader});
   CHECK(serialization != nullptr);
   CHECK(deserializer != nullptr);
-  CHECK(plugin != nullptr);
+  CHECK(plugin_reader != nullptr);
 
   // Create and start a deserializer if the caller didn't provide one.
   if (*deserializer == nullptr) {
@@ -547,12 +547,15 @@ void __cdecl principia__DeserializePlugin(
     CHECK(arena != nullptr);
     not_null<serialization::Plugin*> const message =
         Arena::Create<serialization::Plugin>(arena);
-    (*deserializer)->Start(
-        message,
-        [plugin](google::protobuf::Message const& message) {
-          *plugin = Plugin::ReadFromMessage(
-              static_cast<serialization::Plugin const&>(message)).release();
-        });
+    (*deserializer)
+        ->Start(message,
+                [plugin_reader](google::protobuf::Message const& message) {
+                  *plugin_reader =
+                      make_not_null_unique<PluginReader>(
+                          static_cast<serialization::Plugin const&>(message),
+                          *arena)
+                          .release();
+                });
   }
 
   // Decode the representation.
@@ -562,11 +565,10 @@ void __cdecl principia__DeserializePlugin(
   (*deserializer)->Push(std::move(bytes));
 
   // If the data was empty, delete the deserializer.  This ensures that
-  // `*plugin` is filled.
+  // `message` is filled.
   if (bytes_size == 0) {
     LOG(INFO) << "End plugin deserialization";
     TakeOwnership(deserializer);
-    arena->Reset();
   }
   return m.Return();
 }
@@ -1024,6 +1026,24 @@ Plugin* __cdecl principia__NewPlugin(
                                    planetarium_rotation_in_degrees * Degree);
   LOG(INFO) << "Plugin constructed";
   return m.Return(result.release());
+}
+
+Plugin* __cdecl principia__PluginReaderGet(PluginReader** const reader) {
+  journal::Method<journal::PluginReaderGet> m({reader}, {reader});
+  CHECK(reader != nullptr);
+  CHECK(*reader != nullptr);
+  auto result = (*reader)->get();
+  if (result != nullptr) {
+    TakeOwnership(reader);
+  }
+  return m.Return(result.release());
+}
+
+char const* __cdecl principia__PluginReaderLogs(
+  PluginReader* const reader) {
+  journal::Method<journal::PluginReaderLogs> m({reader});
+  CHECK(reader != nullptr);
+  return m.Return({reader->logs().c_str()});
 }
 
 void __cdecl principia__PrepareToReportCollisions(Plugin* const plugin) {

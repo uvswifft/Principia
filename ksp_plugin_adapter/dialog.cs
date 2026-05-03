@@ -4,14 +4,17 @@ namespace ksp_plugin_adapter {
 internal class Dialog : UnsupervisedWindowRenderer, IConfigNode {
   private Dialog() {}
 
-  public Dialog(bool persist_state) {
+  public Dialog(bool persist_state, bool log_messages_to_unity = true) {
     persist_state_ = persist_state;
+    log_messages_to_unity_ = log_messages_to_unity;
   }
 
   public string message {
     set {
       message_ = value;
-      UnityEngine.Debug.LogError(message_);
+      if (log_messages_to_unity_) {
+        UnityEngine.Debug.LogError(message_);
+      }
     }
   }
 
@@ -51,6 +54,7 @@ internal class Dialog : UnsupervisedWindowRenderer, IConfigNode {
 
   private readonly bool persist_state_;
   private string message_;
+  private readonly bool log_messages_to_unity_;
 }
 
 }  // namespace ksp_plugin_adapter
