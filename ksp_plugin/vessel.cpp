@@ -1046,13 +1046,6 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     for (auto const& segment: trajectory.segments()) {
       VLOG(1) << "Old segment " << s++ << " of size " << segment.size()
               << " for " << vessel->name();
-
-      // Points that were in a non-collapsible segment cannot be moved into a
-      // collapsible segment: that segment won't be checkpointed, so we might
-      // lose data that we couldn't reproduce.
-      CHECK(segment_is_collapsible || !vessel->is_collapsible_)
-          << vessel->name();
-
       for (auto const& [t, degrees_of_freedom] : segment) {
         if (t != vessel->trajectory_.back().time) {
           LOG_EVERY_N_SEC(WARNING, 1)
@@ -1065,6 +1058,12 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
         vessel->EnactCollapsibilityChange(
             /*will_be_collapsible=*/segment_is_collapsible);
         vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
+
+        // Points that were in a non-collapsible segment cannot be moved into a
+        // collapsible segment: that segment won't be checkpointed, so we might
+        // lose data that we couldn't reproduce.
+        CHECK(segment_is_collapsible || !vessel->is_collapsible_)
+            << vessel->name();
       }
       segment_is_collapsible = !segment_is_collapsible;
     }
