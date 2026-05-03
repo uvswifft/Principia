@@ -215,6 +215,14 @@ void Vessel::EnactCollapsibilityChange(bool const will_be_collapsible) {
   bool const segment_is_potentially_extensible =
       downsampling_parameters_.has_value() && backstory_->size() <= 2;
 
+  VLOG(1) << (is_collapsible_ ? "Collapsible" : "Non-collapsible")
+          << " segment at " << backstory_->back().time << " has size "
+          << backstory_->size()
+          << ((is_collapsible_ || !segment_is_potentially_extensible)
+                  ? ""
+                  : ", will be extended")
+          << (collapsibility_changes ? "" : " (no collapsibility change)");
+
   if (collapsibility_changes &&
       (is_collapsible_ || !segment_is_potentially_extensible)) {
     // If collapsibility changes, we create a new history segment.  This ensures
@@ -270,6 +278,8 @@ void Vessel::EnactCollapsibilityChange(bool const will_be_collapsible) {
     auto psychohistory = trajectory_.DetachSegments(psychohistory_);
     switch (segment_action) {
       case Create: {
+        VLOG(1) << "Creating segment " << trajectory_.segments().size()
+                << ", last one has size " << backstory_->size();
         backstory_ = trajectory_.NewSegment();
         if (downsampling_parameters_.has_value()) {
           backstory_->SetDownsampling(downsampling_parameters_.value());
@@ -1006,8 +1016,8 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     }
     CHECK_OK(vessel->trajectory_.Append(trajectory.front().time,
                                         trajectory.front().degrees_of_freedom));
-    vessel->psychohistory_ = vessel->trajectory_.NewSegment();
     vessel->is_collapsible_ = false;
+    std::int64_t const checkpointer_size_before = vessel->checkpointer_->size();
     where_elephants_go_to_die->Bury(std::move(vessel->checkpointer_));
 
     // We will create checkpoints but the pile-up is not known yet, so we'll get
@@ -1023,8 +1033,10 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     // `vessel->is_collapsible_` because the latter reflects our decision to
     // merge segments after redownsampling.
     bool segment_is_collapsible = false;
-    for (auto const& segment : trajectory.segments()) {
-      vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
+    std::int64_t s = 0;
+    for (auto const& segment: trajectory.segments()) {
+      VLOG(1) << "Old segment " << s++ << " of size " << segment.size()
+              << " for " << vessel->name();
       for (auto const& [t, degrees_of_freedom] : segment) {
         if (t != vessel->trajectory_.back().time) {
           LOG_EVERY_N_SEC(WARNING, 1)
@@ -1033,15 +1045,23 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
               << vessel->name() << ": " << t << "/" << trajectory.back().time;
           CHECK_OK(vessel->trajectory_.Append(t, degrees_of_freedom));
         }
+        vessel->psychohistory_ = vessel->trajectory_.NewSegment();
+        vessel->EnactCollapsibilityChange(
+            /*will_be_collapsible=*/segment_is_collapsible);
+        vessel->trajectory_.DeleteSegments(vessel->psychohistory_);
       }
-      vessel->psychohistory_ = vessel->trajectory_.NewSegment();
       segment_is_collapsible = !segment_is_collapsible;
-      vessel->EnactCollapsibilityChange(
-          /*will_be_collapsible=*/segment_is_collapsible);
     }
-    vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     vessel->psychohistory_ =
         vessel->trajectory_.AttachSegments(std::move(psychohistory));
+
+    LOG(WARNING) << "Trajectory for vessel " << vessel->name()
+                 << " was re-downsampled; size before: " << trajectory.size()
+                 << " size after: " << vessel->trajectory_.size()
+                 << " segments before: " << trajectory.segments().size()
+                 << " segments after: " << vessel->trajectory_.segments().size()
+                 << " checkpoints before: " << checkpointer_size_before
+                 << " checkpoints after: " << vessel->checkpointer_->size();
 
     // Now we can get the parameters from the pile-up, they will be set the next
     // time we write a checkpoint.
