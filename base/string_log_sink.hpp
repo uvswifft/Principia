@@ -25,6 +25,6 @@ class StringLogSink : public absl::LogSink {
   std::stringstream logs_ ABSL_GUARDED_BY(lock_);
 };
 
-}  // namespace _file_log_sink
+}  // namespace _string_log_sink
 }  // namespace base
 }  // namespace principia
