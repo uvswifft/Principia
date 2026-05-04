@@ -42,6 +42,7 @@
     <ClCompile Include="..\ksp_plugin\pile_up.cpp" />
     <ClCompile Include="..\ksp_plugin\planetarium.cpp" />
     <ClCompile Include="..\ksp_plugin\plugin.cpp" />
+    <ClCompile Include="..\ksp_plugin\plugin_reader.cpp" />
     <ClCompile Include="..\ksp_plugin\renderer.cpp" />
     <ClCompile Include="..\ksp_plugin\vessel.cpp" />
     <ClCompile Include="benchmark.cpp" />

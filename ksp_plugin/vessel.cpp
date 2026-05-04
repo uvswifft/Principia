@@ -688,7 +688,8 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     serialization::Vessel const& message,
     not_null<Celestial const*> const parent,
     not_null<Ephemeris<Barycentric>*> const ephemeris,
-    std::function<void(PartId)> const& deletion_callback) {
+    std::function<void(PartId)> const& deletion_callback,
+    std::function<void(bool will_be_slow)> expected_performance_callback) {
   bool const is_pre_cesàro = message.has_psychohistory_is_authoritative();
   bool const is_pre_chasles = message.has_prediction();
   bool const is_pre_陈景润 = !message.history().has_downsampling() &&
@@ -704,6 +705,10 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
                         !message.checkpoint(0)
                              .non_collapsible_segment()
                              .has_leibniz_trajectory_marker());
+  if (expected_performance_callback != nullptr) {
+    expected_performance_callback(/*will_be_slow=*/!is_pre_лефшец &&
+                                  is_pre_leibniz);
+  }
   LOG_IF(WARNING, is_pre_leibniz)
       << "Reading pre-"
       << (is_pre_cesàro     ? "Cesàro"
