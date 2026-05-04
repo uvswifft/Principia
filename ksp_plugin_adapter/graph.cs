@@ -8,9 +8,9 @@ namespace principia {
 namespace ksp_plugin_adapter {
 
 internal class Graph : ScalingRenderer {
-  public Graph(float width, float height) {
-    texture_ = new UnityEngine.Texture2D((int)width, (int)height);
-    all_black_ = new UnityEngine.Color[(int)width * (int)height];
+  public Graph(int width, int height) {
+    texture_ = new UnityEngine.Texture2D(width, height);
+    all_black_ = new UnityEngine.Color[width * height];
     for (int i = 0; i < all_black_.Length; ++i) {
       all_black_[i] = XKCDColors.Black;
     }

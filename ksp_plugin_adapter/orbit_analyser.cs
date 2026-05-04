@@ -536,10 +536,10 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
   double last_t_min_ = double.PositiveInfinity;
 
   private void DrawAllGraphs(OrbitalElements elements) {
-    double t_min = double.PositiveInfinity;
     if (elements == null) {
       return;
     }
+    double t_min = double.PositiveInfinity;
     if (!elements.plottable_elements.IteratorAtEnd()) {
       t_min = elements.plottable_elements.IteratorGetPlottableElements().time;
     }
@@ -555,13 +555,13 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
 
   private void DrawElementGraphs(OrbitalElements elements) {
     if (a_graph_ == null) {
-      a_graph_ = new Graph(Width(10), Height(1));
-      e_graph_ = new Graph(Width(10), Height(1));
-      i_graph_ = new Graph(Width(10), Height(1));
-      Ω_graph_ = new Graph(Width(10), Height(1));
-      ω_graph_ = new Graph(Width(10), Height(1));
-      periapsis_graph_ = new Graph(Width(10), Height(1));
-      apoapsis_graph_ = new Graph(Width(10), Height(1));
+      a_graph_ = new Graph((int)Width(10), (int)Height(1));
+      e_graph_ = new Graph((int)Width(10), (int)Height(1));
+      i_graph_ = new Graph((int)Width(10), (int)Height(1));
+      Ω_graph_ = new Graph((int)Width(10), (int)Height(1));
+      ω_graph_ = new Graph((int)Width(10), (int)Height(1));
+      periapsis_graph_ = new Graph((int)Width(10), (int)Height(1));
+      apoapsis_graph_ = new Graph((int)Width(10), (int)Height(1));
     }
     Interval t_range = Interval.Empty;
     elements.plottable_elements.IteratorReset();

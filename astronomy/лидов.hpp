@@ -24,22 +24,22 @@ using namespace principia::quantities::_si;
 
 static inline const Angle i_critical = ArcCos(Sqrt(3.0 / 5.0));
 
-// Returns c₁ such that an orbit with the these values of c₁ and c₂ has no
+// Returns c₁ such that an orbit with these values of c₁ and c₂ has no
 // eccentricity-inclination exchange.
 inline double ЛидовFrozenLine(double const c₂) {
   CHECK_LE(c₂, 0);
   return 3.0 / 5.0 - 2 * Sqrt(-3.0 / 5.0 * c₂) - c₂;
 }
 
-// Returns c₁ such that the upper bound of eccentricity for an orbit with the
-// these values of c₁ and c₂ is e.
+// Returns c₁ such that the upper bound of eccentricity for an orbit with these
+// values of c₁ and c₂ is e.
 inline double ЛидовMaximalEccentricityLine(double const e, double const c₂) {
   double const e² = Pow<2>(e);
   return 3.0 / 5.0 - c₂ + c₂ / e² - 3 * e² / 5.0;
 }
 
 // Returns the range of values of c₂ such that there exists a c₁ such that the
-// upper bound of eccentricity for an orbit with the these values of c₁ and c₂
+// upper bound of eccentricity for an orbit with these values of c₁ and c₂
 // is e.
 Interval<double> ЛидовMaximalEccentricityLineC₂Range(double const e) {
   double const e² = Pow<2>(e);
@@ -47,8 +47,8 @@ Interval<double> ЛидовMaximalEccentricityLineC₂Range(double const e) {
   return {-3.0 * e⁴ / 5.0, 2.0 * e² / 5.0};
 }
 
-// Returns c₁ such that the upper bound of inclination for an orbit with the
-// these values of c₁ and c₂ is i.
+// Returns c₁ such that the upper bound of inclination for an orbit with these
+// values of c₁ and c₂ is i.
 inline double ЛидовMaximalInclinationLine(Angle const i, double const c₂) {
   double const cos_i = Cos(i);
   double const cos²_i = Pow<2>(cos_i);
@@ -58,7 +58,7 @@ inline double ЛидовMaximalInclinationLine(Angle const i, double const c₂)
 }
 
 // Returns the range of values of c₂ such that there exists a c₁ such that the
-// upper bound of inclination for an orbit with the these values of c₁ and c₂
+// upper bound of inclination for an orbit with these values of c₁ and c₂
 // is i.
 Interval<double> ЛидовMaximalInclinationLineC₂Range(Angle const i) {
   double const cos_i = Cos(i);
@@ -67,8 +67,8 @@ Interval<double> ЛидовMaximalInclinationLineC₂Range(Angle const i) {
           2.0 / 5.0};
 }
 
-// Returns c₁ such that the lower bound of inclination for an orbit with the
-// these values of c₁ and c₂ is i.
+// Returns c₁ such that the lower bound of inclination for an orbit with these
+// values of c₁ and c₂ is i.
 inline double ЛидовMinimalInclinationLine(Angle const i, double const c₂) {
   double const cos_i = Cos(i);
   double const cos²_i = Pow<2>(cos_i);
@@ -76,7 +76,7 @@ inline double ЛидовMinimalInclinationLine(Angle const i, double const c₂)
 }
 
 // Returns the range of values of c₂ such that there exists a c₁ such that the
-// lower bound of inclination for an orbit with the these values of c₁ and c₂
+// lower bound of inclination for an orbit with these values of c₁ and c₂
 // is i.
 Interval<double> ЛидовMinimalInclinationLineC₂Range(Angle const i) {
   double const cos_i = Cos(i);
@@ -88,14 +88,14 @@ Interval<double> ЛидовMinimalInclinationLineC₂Range(Angle const i) {
 }
 
 // Returns the value of c₁ such that the lower bound of eccentricity for an
-// orbit with the these values of c₁ and c₂ is e.
+// orbit with these values of c₁ and c₂ is e.
 double ЛидовMinimalEccentricityLeftLine(double const e, double const c₂) {
   double const e² = Pow<2>(e);
   return 3.0 / 5.0 - c₂ + c₂ / e² - 3.0 * e² / 5.0;
 }
 
 // Returns the range of negative values of c₂ such that there exists a c₁ such
-// that the lower bound of eccentricity for an orbit with the these values of c₁
+// that the lower bound of eccentricity for an orbit with these values of c₁
 // and c₂ is e.
 Interval<double> ЛидовMinimalEccentricityLeftLineC₂Range(double const e) {
   double const e² = Pow<2>(e);
