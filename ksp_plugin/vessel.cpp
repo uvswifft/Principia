@@ -392,8 +392,6 @@ void Vessel::RequestReanimation(Instant const& desired_t_min,
                                 bool const quiet) {
   reanimator_.Start();
 
-  // No locking here because vessel reanimation is only invoked from the main
-  // thread.
   bool must_restart;
   Instant allowable_desired_t_min;
   {
