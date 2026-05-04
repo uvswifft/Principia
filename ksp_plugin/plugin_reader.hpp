@@ -30,7 +30,7 @@ class PluginReader {
       not_null<std::unique_ptr<google::protobuf::Arena>> arena);
 
   // Blocks until `Plugin::ReadFromMessage` has determined whether
-  // deserializaton will be slow, and returns the result of that determination.
+  // deserialization will be slow, and returns the result of that determination.
   bool WillBeSlow() const;
 
   // Waits for `Plugin::ReadFromMessage` to finish and returns its result.
