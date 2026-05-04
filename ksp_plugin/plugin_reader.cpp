@@ -1,6 +1,7 @@
 #include "ksp_plugin/plugin_reader.hpp"
 
 #include "absl/log/log_sink_registry.h"
+#include "base/graveyard.hpp"
 #include "base/stoppable_thread.hpp"
 
 namespace principia {
@@ -8,22 +9,30 @@ namespace ksp_plugin {
 namespace _plugin_reader {
 namespace internal {
 
+using namespace principia::base::_graveyard;
 using namespace principia::base::_stoppable_thread;
 
-PluginReader::PluginReader(serialization::Plugin const& message,
-                           google::protobuf::Arena& arena) {
-  reader_ = MakeStoppableThread([this, &message, &arena]() {
-    absl::AddLogSink(&logs_);
-    auto result = Plugin::ReadFromMessage(message, [this](bool will_be_slow) {
-      absl::MutexLock l(lock_);
-      will_be_slow_ = will_be_slow;
-    });
-    arena.Reset();
-    absl::RemoveLogSink(&logs_);
-    absl::MutexLock l(lock_);
-    will_be_slow_ = false;
-    result_ = std::move(result);
-  });
+// This is used to destroy a single arena after loading the plugin, so there is
+// no need for multiple threads.
+auto* const gravedigger = new Graveyard(1);
+
+PluginReader::PluginReader(
+    serialization::Plugin const& message,
+    not_null<std::unique_ptr<google::protobuf::Arena>> arena) {
+  reader_ =
+      MakeStoppableThread([this, &message, arena = std::move(arena)]() mutable {
+        absl::AddLogSink(&logs_);
+        auto result =
+            Plugin::ReadFromMessage(message, [this](bool will_be_slow) {
+              absl::MutexLock l(lock_);
+              will_be_slow_ = will_be_slow;
+            });
+        gravedigger->Bury(std::move(arena));
+        absl::RemoveLogSink(&logs_);
+        absl::MutexLock l(lock_);
+        will_be_slow_ = false;
+        result_ = std::move(result);
+      });
 }
 
 bool PluginReader::WillBeSlow() const {

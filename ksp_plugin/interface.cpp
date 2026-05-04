@@ -544,16 +544,20 @@ void __cdecl principia__DeserializePlugin(
     *deserializer = new PushDeserializer(chunk_size,
                                          number_of_chunks,
                                          NewCompressor(compressor));
-    CHECK(arena != nullptr);
+    auto arena = make_not_null_unique<Arena>(ArenaOptions{
+        .max_block_size = 16 * chunk_size,
+        .initial_block_size = chunk_size,
+    });
     not_null<serialization::Plugin*> const message =
-        Arena::Create<serialization::Plugin>(arena);
+        Arena::Create<serialization::Plugin>(arena.get());
     (*deserializer)
         ->Start(message,
-                [plugin_reader](google::protobuf::Message const& message) {
+                [plugin_reader, arena = std::move(arena)](
+                    google::protobuf::Message const& message) mutable {
                   *plugin_reader =
                       make_not_null_unique<PluginReader>(
                           static_cast<serialization::Plugin const&>(message),
-                          *arena)
+                          std::move(arena))
                           .release();
                 });
   }

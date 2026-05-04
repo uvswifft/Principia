@@ -22,11 +22,10 @@ using namespace principia::ksp_plugin::_plugin;
 
 class PluginReader {
  public:
-  // `message` must be allocated on `arena`. `arena` is reset once the plugin
-  // has been read.
+  // `message` must be allocated on `*arena`.  This 
   PluginReader(
       serialization::Plugin const& message,
-      google::protobuf::Arena& arena);
+      not_null<std::unique_ptr<google::protobuf::Arena>> arena);
 
   bool WillBeSlow() const;
 
