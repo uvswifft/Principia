@@ -11,6 +11,7 @@
 #include "ksp_plugin/pile_up.hpp"
 #include "ksp_plugin/planetarium.hpp"
 #include "ksp_plugin/plugin.hpp"
+#include "ksp_plugin/plugin_reader.hpp"
 #include "ksp_plugin/vessel.hpp"
 #include "physics/apsides.hpp"
 #include "physics/degrees_of_freedom.hpp"
@@ -64,6 +65,7 @@ using namespace principia::ksp_plugin::_frames;
 using namespace principia::ksp_plugin::_pile_up;
 using namespace principia::ksp_plugin::_planetarium;
 using namespace principia::ksp_plugin::_plugin;
+using namespace principia::ksp_plugin::_plugin_reader;
 using namespace principia::ksp_plugin::_vessel;
 using namespace principia::physics::_apsides;
 using namespace principia::physics::_degrees_of_freedom;
