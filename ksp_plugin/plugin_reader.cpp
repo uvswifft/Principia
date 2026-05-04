@@ -1,5 +1,9 @@
 #include "ksp_plugin/plugin_reader.hpp"
 
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "absl/log/log_sink_registry.h"
 #include "base/graveyard.hpp"
 #include "base/stoppable_thread.hpp"
@@ -78,6 +82,6 @@ std::string const& PluginReader::logs() {
 }
 
 }  // namespace internal
-}  // namespace _plugin_future
+}  // namespace _plugin_reader
 }  // namespace ksp_plugin
 }  // namespace principia
