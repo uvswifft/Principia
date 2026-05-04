@@ -87,8 +87,8 @@ Vessel::Vessel(
           MakeCheckpointerWriterFromPileUp(),
           MakeCheckpointerReader())),
       reanimator_(
-          [this](Instant const& desired_t_min) {
-            return Reanimate(desired_t_min);
+          [this](ReanimatorParameters const& reanimator_parameters) {
+            return Reanimate(reanimator_parameters);
           },
           20ms),  // 50 Hz.
       reanimator_clientele_(/*default_key=*/InfiniteFuture),
@@ -388,7 +388,8 @@ void Vessel::AdvanceTime() {
   }
 }
 
-void Vessel::RequestReanimation(Instant const& desired_t_min) {
+void Vessel::RequestReanimation(Instant const& desired_t_min,
+                                bool const quiet) {
   reanimator_.Start();
 
   // No locking here because vessel reanimation is only invoked from the main
@@ -425,16 +426,18 @@ void Vessel::RequestReanimation(Instant const& desired_t_min) {
     }
   }
 
-  reanimator_.Put(last_desired_t_min_.value());
+  reanimator_.Put({.desired_t_min = last_desired_t_min_.value(),
+                   .quiet = quiet});
 }
 
-void Vessel::AwaitReanimation(Instant const& desired_t_min) {
+void Vessel::AwaitReanimation(Instant const& desired_t_min,
+                              bool const quiet) {
   auto desired_t_min_reached_or_fully_reanimated = [this, desired_t_min]() {
     return DesiredTMinReachedOrFullyReanimated(desired_t_min);
   };
 
   Client const me(desired_t_min, reanimator_clientele_);
-  RequestReanimation(desired_t_min);
+  RequestReanimation(desired_t_min, quiet);
   absl::ReaderMutexLock l(&lock_);
   lock_.Await(absl::Condition(&desired_t_min_reached_or_fully_reanimated));
 }
@@ -899,7 +902,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
   // history.  The downsampling and merging of segments happen anew, so that we
   // end up with reasonably-sized data structures.
   if (!is_pre_лефшец && is_pre_leibniz && !vessel->trajectory_.empty()) {
-    vessel->AwaitReanimation(InfinitePast);
+    vessel->AwaitReanimation(InfinitePast, /*quiet=*/true);
     auto psychohistory =
         vessel->trajectory_.DetachSegments(vessel->psychohistory_);
     DiscreteTrajectory<Barycentric> trajectory = std::move(vessel->trajectory_);
@@ -1065,13 +1068,15 @@ Checkpointer<serialization::Vessel>::Reader Vessel::MakeCheckpointerReader() {
   };
 }
 
-absl::Status Vessel::Reanimate(Instant const desired_t_min) {
+absl::Status Vessel::Reanimate(
+    ReanimatorParameters const& reanimator_parameters) {
   // This method is very similar to Ephemeris::Reanimate.  See the comments
   // there for some of the subtle points.
   static_assert(serializable<Barycentric>);
   absl::btree_set<Instant> checkpoints;
-  LOG(INFO) << "Reanimating " << ShortDebugString() << " until "
-            << desired_t_min;
+  LOG_EVERY_N_SEC(INFO, reanimator_parameters.quiet ? 1 : 0)
+      << "Reanimating " << ShortDebugString() << " until "
+      << reanimator_parameters.desired_t_min;
 
   Instant t_final;
   {
@@ -1083,7 +1088,8 @@ absl::Status Vessel::Reanimate(Instant const desired_t_min) {
     }
 
     Instant const oldest_checkpoint_to_reanimate =
-        checkpointer_->checkpoint_at_or_before(desired_t_min);
+        checkpointer_->checkpoint_at_or_before(
+            reanimator_parameters.desired_t_min);
     checkpoints = checkpointer_->all_checkpoints_between(
         oldest_checkpoint_to_reanimate, oldest_reanimated_checkpoint_);
 
@@ -1095,10 +1101,13 @@ absl::Status Vessel::Reanimate(Instant const desired_t_min) {
   for (auto const& checkpoint : checkpoints | std::views::reverse) {
     RETURN_IF_ERROR(checkpointer_->ReadFromCheckpointAt(
         checkpoint,
-        [this, t_initial = checkpoint, &t_final](
+        [this,
+         quiet = reanimator_parameters.quiet,
+         t_initial = checkpoint,
+         &t_final](
             serialization::Vessel::Checkpoint const& message) -> absl::Status {
           auto const status_or_t_final =
-              ReanimateOneCheckpoint(message, t_initial, t_final);
+              ReanimateOneCheckpoint(message, t_initial, t_final, quiet);
           RETURN_IF_ERROR(status_or_t_final);
           t_final = status_or_t_final.value();
           return absl::OkStatus();
@@ -1110,10 +1119,12 @@ absl::Status Vessel::Reanimate(Instant const desired_t_min) {
 absl::StatusOr<Instant> Vessel::ReanimateOneCheckpoint(
     serialization::Vessel::Checkpoint const& message,
     Instant const& t_initial,
-    Instant const& t_final) {
+    Instant const& t_final,
+    bool const quiet) {
   CHECK_LE(t_initial, t_final);
-  LOG(INFO) << "Restoring " << ShortDebugString() << " to checkpoint at "
-            << t_initial << " until " << t_final;
+  LOG_EVERY_N_SEC(INFO, quiet ? 1 : 0)
+      << "Restoring " << ShortDebugString() << " to checkpoint at " << t_initial
+      << " until " << t_final;
 
   // Restore the non-collapsible segment that was fully saved.  It was the
   // backstory when the checkpoint was taken.
@@ -1148,10 +1159,11 @@ absl::StatusOr<Instant> Vessel::ReanimateOneCheckpoint(
   auto const status = ephemeris_->FlowWithFixedStep(t_final, *fixed_instance);
   RETURN_IF_ERROR(status);
 
-  LOG(INFO) << "Burn from " << reanimated_trajectory.front().time << " to "
-            << t_initial << " (" << reanimated_trajectory_size
-            << " points), coast to " << t_final << " ("
-            << collapsible_segment->size() << " points)";
+  LOG_EVERY_N_SEC(INFO, quiet ? 1 : 0)
+      << "Burn from " << reanimated_trajectory.front().time << " to "
+      << t_initial << " (" << reanimated_trajectory_size
+      << " points), coast to " << t_final << " (" << collapsible_segment->size()
+      << " points)";
 
 
   // Push the reanimated trajectory into the queue where it will be consumed by
