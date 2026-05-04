@@ -1590,8 +1590,8 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
   for (auto const& vessel_message : message.vessel()) {
     not_null<Celestial const*> const parent =
         FindOrDie(plugin->celestials_, vessel_message.parent_index()).get();
-    vessel_futures.push_back(
-        vessel_deserialization_pool.Add([parent, &plugin, &vessel_message, expected_performance]() {
+    vessel_futures.push_back(vessel_deserialization_pool.Add(
+        [parent, &plugin, &vessel_message, expected_performance]() {
           return Vessel::ReadFromMessage(
               vessel_message.vessel(),
               parent,
