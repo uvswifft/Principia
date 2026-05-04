@@ -281,7 +281,7 @@ message OrbitAnalysis {
 }
 
 message Method {
-  extensions 5000 to 5999;  // Last used: 5216.
+  extensions 5000 to 5999;  // Last used: 5218.
 }
 
 message ActivatePlayer {
@@ -2374,7 +2374,7 @@ message PlanetariumPlotPsychohistory {
 
 message PluginReaderAwait {
   extend Method {
-    optional PluginReaderAwait extension = 5216;
+    optional PluginReaderAwait extension = 5218;
   }
   message In {
     required fixed64 reader = 1 [(pointer_to) = "PluginReader",
@@ -2394,7 +2394,7 @@ message PluginReaderAwait {
 
 message PluginReaderGet {
   extend Method {
-    optional PluginReaderGet extension = 5213;
+    optional PluginReaderGet extension = 5215;
   }
   message In {
     required fixed64 reader = 1 [(pointer_to) = "PluginReader",
@@ -2414,7 +2414,7 @@ message PluginReaderGet {
 
 message PluginReaderLogs {
   extend Method {
-    optional PluginReaderLogs extension = 5214;
+    optional PluginReaderLogs extension = 5216;
   }
   message In {
     required fixed64 reader = 1 [(pointer_to) = "PluginReader", (is_subject) = true];
@@ -2428,7 +2428,7 @@ message PluginReaderLogs {
 
 message PluginReaderWillBeSlow {
   extend Method {
-    optional PluginReaderWillBeSlow extension = 5215;
+    optional PluginReaderWillBeSlow extension = 5217;
   }
   message In {
     required fixed64 reader = 1 [(pointer_to) = "PluginReader const", (is_subject) = true];
