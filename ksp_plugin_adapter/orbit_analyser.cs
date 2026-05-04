@@ -613,7 +613,7 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
 
   private void DrawEccentricityVectorGraph(OrbitalElements elements) {
     if (eccentricity_vector_graph_ == null) { 
-      eccentricity_vector_graph_ = new Graph(Width(10), Height(10));
+      eccentricity_vector_graph_ = new Graph((int)Width(10), (int)Height(10));
     }
     Interval e_cos_ω_range = Interval.Empty;
     Interval e_sin_ω_range = Interval.Empty;
@@ -653,7 +653,7 @@ internal abstract class OrbitAnalyser : RequiredVesselSupervisedWindowRenderer {
 
   private void DrawЛидовGraph(OrbitalElements elements) {
     if (лидов_graph_ == null) {
-      лидов_graph_ = new Graph(Width(10), Height(10));
+      лидов_graph_ = new Graph((int)Width(10), (int)Height(10));
     }
     лидов_graph_.PrepareCanvas(
         new Interval{ min = -3.0 / 5.0, max = 2.0 / 5.0 },
