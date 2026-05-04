@@ -15,6 +15,7 @@
 #include "base/pull_serializer.hpp"
 #include "base/push_deserializer.hpp"
 #include "ksp_plugin/interface.hpp"  // 🧙 For interface functions.
+#include "ksp_plugin/plugin_reader.hpp"
 #include "testing_utilities/serialization.hpp"
 
 namespace principia {
@@ -33,6 +34,7 @@ using namespace principia::base::_file;
 using namespace principia::base::_pull_serializer;
 using namespace principia::base::_push_deserializer;
 using namespace principia::testing_utilities::_serialization;
+using namespace principia::ksp_plugin::_plugin_reader;
 
 not_null<std::unique_ptr<Plugin const>> ReadPluginFromFile(
     std::filesystem::path const& filename,
@@ -47,7 +49,7 @@ not_null<std::unique_ptr<Plugin const>> ReadPluginFromFile(
     std::string_view const compressor,
     std::string_view const encoder,
     std::int64_t& bytes_processed) {
-  Plugin const* plugin = nullptr;
+  PluginReader* plugin_reader = nullptr;
 
   PushDeserializer* deserializer = nullptr;
   auto const lines =
@@ -61,19 +63,19 @@ not_null<std::unique_ptr<Plugin const>> ReadPluginFromFile(
   for (std::string const& line : lines) {
     principia__DeserializePlugin(line.c_str(),
                                  &deserializer,
-                                 &plugin,
+                                 &plugin_reader,
                                  compressor.data(),
                                  encoder.data());
     bytes_processed += line.size();
   }
   principia__DeserializePlugin("",
                                &deserializer,
-                               &plugin,
+                               &plugin_reader,
                                compressor.data(),
                                encoder.data());
   LOG(ERROR) << "Deserialization complete";
 
-  return std::unique_ptr<Plugin const>(plugin);
+  return plugin_reader->Await();
 }
 
 void WritePluginToFile(std::filesystem::path const& filename,
