@@ -395,7 +395,10 @@ void Vessel::RequestReanimation(Instant const& desired_t_min,
   // No locking here because vessel reanimation is only invoked from the main
   // thread.
   bool must_restart;
+  Instant allowable_desired_t_min;
   {
+    absl::MutexLock l(&lock_);
+
     // If the reanimator is asked to do significantly less work (in terms of
     // checkpoints to reanimate) than it is currently doing, interrupt it.  Note
     // that this is fundamentally racy: for instance the reanimator may not have
@@ -403,7 +406,7 @@ void Vessel::RequestReanimation(Instant const& desired_t_min,
     // very long reanimation and wants to shorten it.  Note however that we must
     // not move the desired t_min beyond the point where there are clients
     // waiting for reanimation as they would never succeed.
-    Instant const allowable_desired_t_min =
+    allowable_desired_t_min =
         std::min(desired_t_min, reanimator_clientele_.first());
     must_restart =
         last_desired_t_min_.has_value() &&
@@ -413,20 +416,17 @@ void Vessel::RequestReanimation(Instant const& desired_t_min,
         << "Restarting reanimator because desired t_min went from "
         << last_desired_t_min_.value() << " to " << allowable_desired_t_min;
     last_desired_t_min_ = allowable_desired_t_min;
+
+    if (DesiredTMinReachedOrFullyReanimated(allowable_desired_t_min)) {
+      return;
+    }
   }
 
   if (must_restart) {
     reanimator_.Restart();
   }
 
-  {
-    absl::MutexLock l(&lock_);
-    if (DesiredTMinReachedOrFullyReanimated(last_desired_t_min_.value())) {
-      return;
-    }
-  }
-
-  reanimator_.Put({.desired_t_min = last_desired_t_min_.value(),
+  reanimator_.Put({.desired_t_min = allowable_desired_t_min,
                    .quiet = quiet});
 }
 

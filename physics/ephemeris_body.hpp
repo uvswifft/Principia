@@ -266,6 +266,7 @@ void Ephemeris<Frame>::RequestReanimation(Instant const& desired_t_min) {
   reanimator_.Start();
 
   bool must_restart;
+  Instant allowable_desired_t_min;
   {
     absl::MutexLock l(&lock_);
 
@@ -277,7 +278,7 @@ void Ephemeris<Frame>::RequestReanimation(Instant const& desired_t_min) {
     // we must not move the desired t_min beyond the point where there are
     // clients waiting for reanimation (e.g., vessels) as they would never
     // succeed.
-    Instant const allowable_desired_t_min =
+    allowable_desired_t_min =
         std::min(desired_t_min, reanimator_clientele_.first());
     must_restart = last_desired_t_min_.has_value() &&
                    last_desired_t_min_.value() + max_time_between_checkpoints <
@@ -286,13 +287,17 @@ void Ephemeris<Frame>::RequestReanimation(Instant const& desired_t_min) {
         << "Restarting reanimator because desired t_min went from "
         << last_desired_t_min_.value() << " to " << allowable_desired_t_min;
     last_desired_t_min_ = allowable_desired_t_min;
+
+    if (DesiredTMinReachedOrFullyReanimated(allowable_desired_t_min)) {
+      return;
+    }
   }
 
   // Don't hold the lock while restarting, the reanimator needs it.
   if (must_restart) {
     reanimator_.Restart();
   }
-  reanimator_.Put(last_desired_t_min_.value());
+  reanimator_.Put(allowable_desired_t_min);
 }
 
 template<typename Frame>
@@ -1057,6 +1062,14 @@ absl::Status Ephemeris<Frame>::ReanimateOneCheckpoint(
   }
 
   return absl::OkStatus();
+}
+
+template<typename Frame>
+bool Ephemeris<Frame>::DesiredTMinReachedOrFullyReanimated(
+    Instant const& desired_t_min) {
+  lock_.AssertReaderHeld();
+  return t_min_locked() <= desired_t_min ||
+         oldest_reanimated_checkpoint_ == checkpointer_->oldest_checkpoint();
 }
 
 template<typename Frame>

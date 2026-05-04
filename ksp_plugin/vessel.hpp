@@ -445,7 +445,7 @@ class Vessel {
   Clientele<Instant> reanimator_clientele_;
 
   // Parameter passed to the last call to `RequestReanimation`, if any.
-  std::optional<Instant> last_desired_t_min_;
+  std::optional<Instant> last_desired_t_min_ ABSL_GUARDED_BY(lock_);
 
   // The trajectories that have been reanimated are put in this queue by
   // ReanimateOneCheckpoint and consumed by RequestReanimation.
