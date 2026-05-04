@@ -73,7 +73,7 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
   // Whether we are in the main menu.
   private readonly bool in_main_menu_ =
       HighLogic.LoadedScene == GameScenes.MAINMENU;
-      
+
   private IntPtr plugin_ = IntPtr.Zero;
   private IntPtr plugin_reader_ = IntPtr.Zero;
 

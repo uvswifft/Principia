@@ -1522,7 +1522,7 @@ void Plugin::WriteToMessage(
 
 not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
     serialization::Plugin const& message,
-      std::function<void(bool will_be_slow)> expected_performance) {
+    std::function<void(bool will_be_slow)> expected_performance_callback) {
   LOG(INFO) << __FUNCTION__;
 
   auto const history_parameters =
@@ -1591,7 +1591,7 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
     not_null<Celestial const*> const parent =
         FindOrDie(plugin->celestials_, vessel_message.parent_index()).get();
     vessel_futures.push_back(vessel_deserialization_pool.Add(
-        [parent, &plugin, &vessel_message, expected_performance]() {
+        [expected_performance_callback, parent, &plugin, &vessel_message]() {
           return Vessel::ReadFromMessage(
               vessel_message.vessel(),
               parent,
@@ -1600,7 +1600,7 @@ not_null<std::unique_ptr<Plugin>> Plugin::ReadFromMessage(
                    plugin->part_id_to_vessel_](PartId const part_id) {
                 CHECK_NE(part_id_to_vessel.erase(part_id), 0) << part_id;
               },
-              expected_performance);
+              expected_performance_callback);
         }));
   }
 

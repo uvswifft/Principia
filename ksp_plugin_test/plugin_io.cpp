@@ -29,6 +29,7 @@ constexpr std::string_view preferred_encoder = "base64";
 using interface::principia__DeletePlugin;
 using interface::principia__DeleteString;
 using interface::principia__DeserializePlugin;
+using interface::principia__PluginReaderAwait;
 using interface::principia__SerializePlugin;
 using namespace principia::base::_file;
 using namespace principia::base::_pull_serializer;
@@ -75,7 +76,8 @@ not_null<std::unique_ptr<Plugin const>> ReadPluginFromFile(
                                encoder.data());
   LOG(ERROR) << "Deserialization complete";
 
-  return plugin_reader->Await();
+  std::unique_ptr<Plugin const> plugin(principia__PluginReaderAwait(&plugin_reader));
+  return plugin;
 }
 
 void WritePluginToFile(std::filesystem::path const& filename,

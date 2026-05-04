@@ -59,7 +59,7 @@ std::ostream& operator<<(std::ostream& out,
                          DelegatingArrayInputStream const& stream);
 
 
-  template<typename F>
+template<typename F>
 concept DeserializerDoneCallback =
     std::invocable<F, google::protobuf::Message const&> ||
     std::same_as<F, std::nullptr_t>;

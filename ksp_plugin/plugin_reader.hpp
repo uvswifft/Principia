@@ -29,22 +29,29 @@ class PluginReader {
       serialization::Plugin const& message,
       not_null<std::unique_ptr<google::protobuf::Arena>> arena);
 
+  // Blocks until `Plugin::ReadFromMessage` has determined whether deserializaton
+  // will be slow, and returns the result of that determination.
   bool WillBeSlow() const;
 
+  // Waits for `Plugin::ReadFromMessage` to finish and returns its result.
   not_null<std::unique_ptr<Plugin>> Await();
+  // Returns the result of `Plugin::ReadFromMessage` if available, and `nullptr`
+  // otherwise.
   std::unique_ptr<Plugin> get();
 
+  // Returns the last few log lines.
   // The result is owned by this object and is is not mutated until the next
   // call to `logs()`.
   std::string const& logs();
 
  private:
-  StringLogSink logs_;
+  StringLogSink log_sink_;
   std::string logs_snapshot_;
   mutable absl::Mutex lock_;
-  std::jthread reader_;
   std::optional<bool> will_be_slow_ ABSL_GUARDED_BY(lock_);
   std::unique_ptr<Plugin> result_ ABSL_GUARDED_BY(lock_);
+
+  std::jthread reader_;
 };
 
 }  // namespace internal

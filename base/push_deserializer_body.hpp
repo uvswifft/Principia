@@ -136,9 +136,8 @@ void PushDeserializer::Start(
 }
 
 template<DeserializerDoneCallback F>
-void PushDeserializer::Start(
-    not_null<google::protobuf::Message*> const message,
-    F done) {
+void PushDeserializer::Start(not_null<google::protobuf::Message*> const message,
+                             F done) {
   CHECK(thread_ == nullptr);
   message_ = message;
   thread_ =
@@ -161,7 +160,13 @@ void PushDeserializer::Start(
 
         // Run the final callback.
         if constexpr (std::invocable<F, google::protobuf::Message const&>) {
-          done(*message_);
+          if constexpr (std::equality_comparable_with<F, nullptr_t>) {
+            if (done != nullptr) {
+              done(*message_);
+            }
+          } else {
+            done(*message_);
+          }
         }
       });
 }

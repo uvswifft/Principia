@@ -1,6 +1,8 @@
 #include "ksp_plugin/plugin_reader.hpp"
 
 #include <memory>
+#include <ranges>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -22,39 +24,38 @@ auto* const gravedigger = new Graveyard(1);
 
 PluginReader::PluginReader(
     serialization::Plugin const& message,
-    not_null<std::unique_ptr<google::protobuf::Arena>> arena) {
-  reader_ =
-      MakeStoppableThread([this, &message, arena = std::move(arena)]() mutable {
-        absl::AddLogSink(&logs_);
-        auto result =
-            Plugin::ReadFromMessage(message, [this](bool will_be_slow) {
-              absl::MutexLock l(lock_);
-              will_be_slow_ = will_be_slow;
-            });
-        gravedigger->Bury(std::move(arena));
-        absl::RemoveLogSink(&logs_);
-        absl::MutexLock l(lock_);
-        will_be_slow_ = false;
-        result_ = std::move(result);
-      });
-}
+    not_null<std::unique_ptr<google::protobuf::Arena>> arena)
+    : reader_(MakeStoppableThread(
+          [this, arena = std::move(arena), &message]() mutable {
+            absl::AddLogSink(&log_sink_);
+            auto result =
+                Plugin::ReadFromMessage(message, [this](bool will_be_slow) {
+                  absl::MutexLock l(lock_);
+                  will_be_slow_ = will_be_slow;
+                });
+            gravedigger->Bury(std::move(arena));
+            absl::RemoveLogSink(&log_sink_);
+            absl::MutexLock l(lock_);
+            will_be_slow_ = false;
+            result_ = std::move(result);
+          })) {}
 
 bool PluginReader::WillBeSlow() const {
   auto slowness_known = [this]() {
     lock_.AssertReaderHeld();
     return will_be_slow_.has_value();
   };
-  absl::MutexLock l(lock_);
+  absl::ReaderMutexLock l(lock_);
   lock_.Await(absl::Condition(&slowness_known));
   return *will_be_slow_;
 }
 
 not_null<std::unique_ptr<Plugin>> PluginReader::Await() {
-  absl::MutexLock l(lock_);
   auto has_result = [this]() {
     lock_.AssertReaderHeld();
     return result_ != nullptr;
   };
+  absl::MutexLock l(lock_);
   lock_.Await(absl::Condition(&has_result));
   return std::move(result_);
 }
@@ -65,19 +66,13 @@ std::unique_ptr<Plugin> PluginReader::get() {
 }
 
 std::string const& PluginReader::logs() {
-  logs_snapshot_ = logs_.logs();
-  int tail_lines = 0;
-  auto tail_start = logs_snapshot_.rbegin();
-  for (; tail_start != logs_snapshot_.rend(); ++tail_start) {
-    if (*tail_start == '\n') {
-      ++tail_lines;
-    }
-    if (tail_lines == 10) {
-      break;
-    }
+  auto const lines = log_sink_.logs();
+  std::span tail = lines;
+  if (tail.size() > 10) {
+    tail = tail.subspan(tail.size() - 10);
   }
   logs_snapshot_ =
-      logs_snapshot_.substr(tail_start.base() - logs_snapshot_.begin());
+      tail | std::ranges::views::join | std::ranges::to<std::string>();
   return logs_snapshot_;
 }
 

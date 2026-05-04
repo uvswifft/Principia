@@ -688,7 +688,7 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
     not_null<Celestial const*> const parent,
     not_null<Ephemeris<Barycentric>*> const ephemeris,
     std::function<void(PartId)> const& deletion_callback,
-    std::function<void(bool will_be_slow)> expected_performance) {
+    std::function<void(bool will_be_slow)> expected_performance_callback) {
   bool const is_pre_cesàro = message.has_psychohistory_is_authoritative();
   bool const is_pre_chasles = message.has_prediction();
   bool const is_pre_陈景润 = !message.history().has_downsampling() &&

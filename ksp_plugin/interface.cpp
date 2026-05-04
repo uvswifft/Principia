@@ -538,12 +538,16 @@ void __cdecl principia__DeserializePlugin(
   CHECK(deserializer != nullptr);
   CHECK(plugin_reader != nullptr);
 
-  // Create and start a deserializer if the caller didn't provide one.
+  // Create and start a deserializer and an arena if the caller didn't provide
+  // one.
   if (*deserializer == nullptr) {
     LOG(INFO) << "Begin plugin deserialization";
     *deserializer = new PushDeserializer(chunk_size,
                                          number_of_chunks,
                                          NewCompressor(compressor));
+    // The ownership of this arena will be transferred to the `PushDeserializer`
+    // (via the `done` callback), and then by the `done` callback to the
+    // `PluginReader`.
     auto arena = make_not_null_unique<Arena>(ArenaOptions{
         .max_block_size = 16 * chunk_size,
         .initial_block_size = chunk_size,
@@ -554,11 +558,9 @@ void __cdecl principia__DeserializePlugin(
         ->Start(message,
                 [plugin_reader, arena = std::move(arena)](
                     google::protobuf::Message const& message) mutable {
-                  *plugin_reader =
-                      make_not_null_unique<PluginReader>(
-                          static_cast<serialization::Plugin const&>(message),
-                          std::move(arena))
-                          .release();
+                  *plugin_reader = new PluginReader(
+                      static_cast<serialization::Plugin const&>(message),
+                      std::move(arena));
                 });
   }
 
@@ -569,7 +571,7 @@ void __cdecl principia__DeserializePlugin(
   (*deserializer)->Push(std::move(bytes));
 
   // If the data was empty, delete the deserializer.  This ensures that
-  // `message` is filled.
+  // `*plugin_reader` is filled.
   if (bytes_size == 0) {
     LOG(INFO) << "End plugin deserialization";
     TakeOwnership(deserializer);

@@ -490,7 +490,8 @@ class Plugin {
   virtual void WriteToMessage(not_null<serialization::Plugin*> message) const;
   static not_null<std::unique_ptr<Plugin>> ReadFromMessage(
       serialization::Plugin const& message,
-      std::function<void(bool will_be_slow)> expected_performance = nullptr);
+      std::function<void(bool will_be_slow)> expected_performance_callback =
+          nullptr);
 
  private:
   using GUIDToOwnedVessel = std::map<GUID, not_null<std::unique_ptr<Vessel>>>;
