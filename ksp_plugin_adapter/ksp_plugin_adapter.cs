@@ -274,9 +274,7 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
   [KSPField(isPersistant = true)]
   private readonly Dialog bad_installation_dialog_ =
       new Dialog(persist_state: false);
-  [KSPField(isPersistant = true)]
-  private readonly Dialog plugin_reader_dialog_ =
-      new Dialog(persist_state: false, log_messages_to_unity: false);
+  private MigrationMonitor migration_monitor_ = null;
 
   // The game windows.
   [KSPField(isPersistant = true)]
@@ -932,6 +930,7 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
                                   serialization_compression_,
                                   serialization_encoding_);
       if (plugin_reader_.PluginReaderWillBeSlow()) {
+        migration_monitor_ = new MigrationMonitor(plugin_reader_);
         KeepPaused();
       } else {
         plugin_ = Interface.PluginReaderAwait(ref plugin_reader_);
@@ -970,18 +969,15 @@ public partial class PrincipiaPluginAdapter : ScenarioModule,
           KeepPaused();
         } else {
           FlightDriver.SetPause(pauseState: false);
-          plugin_reader_dialog_.Hide();
+          migration_monitor_.Hide();
+          migration_monitor_ = null;
           LockClearing();
         }
       }
     }
-    if (plugin_reader_ != IntPtr.Zero) {
-      plugin_reader_dialog_.Show();
-      plugin_reader_dialog_.message =
-          "The Principia save requires reprocessing, see Principia issue #4490.\n" +
-          "This may take a while; the game will unpause when done…\n\n" +
-          plugin_reader_.PluginReaderLogs();
-      plugin_reader_dialog_.RenderWindow();
+    if (migration_monitor_ != null) {
+      migration_monitor_.Show();
+      migration_monitor_.RenderWindow();
       return;
     }
 
