@@ -2,6 +2,7 @@
 
 #include <exception>
 #include <string>
+#include <vector>
 #include <utility>
 
 #include "absl/log/check.h"

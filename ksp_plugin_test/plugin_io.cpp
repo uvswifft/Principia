@@ -76,7 +76,8 @@ not_null<std::unique_ptr<Plugin const>> ReadPluginFromFile(
                                encoder.data());
   LOG(ERROR) << "Deserialization complete";
 
-  std::unique_ptr<Plugin const> plugin(principia__PluginReaderAwait(&plugin_reader));
+  std::unique_ptr<Plugin const> plugin(
+      principia__PluginReaderAwait(&plugin_reader));
   return plugin;
 }
 
