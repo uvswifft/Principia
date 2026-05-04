@@ -22,7 +22,9 @@ using namespace principia::ksp_plugin::_plugin;
 
 class PluginReader {
  public:
-  // `message` must be allocated on `*arena`.  This 
+  // `message` must be allocated on `*arena`.  The arena will be destroyed at
+  // some point after this constructor is called, possibly after the destruction
+  // of the constructed object (the arena is sent to a graveyard).
   PluginReader(
       serialization::Plugin const& message,
       not_null<std::unique_ptr<google::protobuf::Arena>> arena);
