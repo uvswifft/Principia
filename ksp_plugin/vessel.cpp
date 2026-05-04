@@ -704,8 +704,9 @@ not_null<std::unique_ptr<Vessel>> Vessel::ReadFromMessage(
                         !message.checkpoint(0)
                              .non_collapsible_segment()
                              .has_leibniz_trajectory_marker());
-  if (expected_performance != nullptr) {
-    expected_performance(/*will_be_slow=*/!is_pre_лефшец && is_pre_leibniz);
+  if (expected_performance_callback != nullptr) {
+    expected_performance_callback(/*will_be_slow=*/!is_pre_лефшец &&
+                                  is_pre_leibniz);
   }
   LOG_IF(WARNING, is_pre_leibniz)
       << "Reading pre-"
