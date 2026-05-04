@@ -33,8 +33,8 @@ using interface::principia__SerializePlugin;
 using namespace principia::base::_file;
 using namespace principia::base::_pull_serializer;
 using namespace principia::base::_push_deserializer;
-using namespace principia::testing_utilities::_serialization;
 using namespace principia::ksp_plugin::_plugin_reader;
+using namespace principia::testing_utilities::_serialization;
 
 not_null<std::unique_ptr<Plugin const>> ReadPluginFromFile(
     std::filesystem::path const& filename,
